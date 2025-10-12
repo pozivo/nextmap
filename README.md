@@ -1,15 +1,24 @@
 # 🔍 NextMap - Advanced Network Scanner with Stealth & CVE Detection
 
-[![Release](https://img.shields.io/github/v/release/pozivo/nextmap)](https://github.com/pozivo/nextmap/releases)
-[![License](https://img.shields.io/github/license/pozivo/nextmap)](LICENSE)
-[![Build](https://img.shields.io/github/actions/workflow/status/pozivo/nextmap/release.yml)](https://github.com/pozivo/nextmap/actions)
+<div align="center">
+
+[![Release](https://img.shields.io/github/v/release/pozivo/nextmap?style=for-the-badge&logo=github&color=00D4AA)](https://github.com/pozivo/nextmap/releases)
+[![Downloads](https://img.shields.io/github/downloads/pozivo/nextmap/total?style=for-the-badge&logo=download&color=blue)](https://github.com/pozivo/nextmap/releases)
+[![License](https://img.shields.io/github/license/pozivo/nextmap?style=for-the-badge&color=green)](LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/pozivo/nextmap/release.yml?style=for-the-badge&logo=github-actions)](https://github.com/pozivo/nextmap/actions)
+
+**🚀 Next generation network scanner with advanced stealth capabilities and CVE vulnerability detection**
+
+*nmap-compatible • Enterprise-ready • Rust-powered*
+
+</div>
 
 NextMap is a modern, fast, and feature-rich network scanner built in Rust with advanced stealth capabilities and automatic CVE detection. Perfect for penetration testing, security assessments, and network reconnaissance.
 
 ```
-🔍 NextMap v0.2.0 - Advanced Network Scanner
+🔍 NextMap v0.2.3 - Advanced Network Scanner with nmap Compatibility
 
-🥷 Stealth Scanning    🛡️ CVE Detection      ⚡ Full Port Scanning
+🥷 Stealth Scanning    🛡️ CVE Detection      ⚡ Smart Port Selection
 🎯 Multi-Format Output 🔍 OS Fingerprinting  🚀 High Performance
 
 $ nextmap 192.168.1.0/24 --stealth ninja --cve --output json
@@ -33,7 +42,7 @@ $ nextmap 192.168.1.0/24 --stealth ninja --cve --output json
 - **Source Port Spoofing** - Use common ports (53, 20, etc.)
 - **Multiple Stealth Presets** - Ghost, Ninja, Shadow modes
 
-### �️ **CVE Integration**
+### 🛡️ **CVE Integration**
 - **Automatic CVE Scanning** - Real-time vulnerability detection
 - **NIST Database Updates** - Fresh vulnerability data
 - **Service-to-CVE Mapping** - Intelligent vulnerability correlation
@@ -201,42 +210,43 @@ nextmap --target example.com --rate-limit 1000 --concurrency 50
 ## 📖 Usage
 
 ```
-# 🔍 NextMap - Advanced Network Scanner
-
-<div align="center">
-
-![NextMap Banner](assets/logo-banner.svg)
-
-[![GitHub Release](https://img.shields.io/github/v/release/pozivo/nextmap)](https://github.com/pozivo/nextmap/releases)
-[![Downloads](https://img.shields.io/github/downloads/pozivo/nextmap/total)](https://github.com/pozivo/nextmap/releases)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/pozivo/nextmap/releases)
-
-**Next generation network scanner with advanced stealth capabilities and CVE vulnerability detection.**
-
-</div>
-
 Usage: nextmap [OPTIONS] --target <TARGET>
 
 Options:
-  -t, --target <TARGET>                    Target IP, IP range (e.g., 192.168.1.1-254) or CIDR (e.g., 192.168.1.0/24) to scan
-  -p, --ports <PORTS>                      Ports to scan (e.g., "80,443,22-25") [default: 21,22,23,25,53,80,110,143,443,993,995,3389,3306,5432]
-  -s, --service-scan                       Enable service detection and vulnerability analysis
+  -t, --target <TARGET>                    Target IP, IP range or CIDR to scan
+  -p, --ports <PORTS>                      Ports to scan [default: top1000]
+  -s, --service-scan                       Enable service detection
   -O, --os-scan                            Enable OS fingerprinting
-  -o, --output-format <OUTPUT_FORMAT>      Output format (human, json, yaml, xml, csv, md) [default: human]
-  -T, --timeout <TIMEOUT>                  Connection timeout in milliseconds [default: 1000]
-  -c, --concurrency <CONCURRENCY>          Maximum concurrent tasks [default: 100]
-  -f, --output-file <OUTPUT_FILE>          Save output to file instead of stdout
-  -U, --udp-scan                           Enable UDP scanning in addition to TCP
-      --udp-ports <UDP_PORTS>              UDP ports to scan (default: DNS, DHCP, SNMP) [default: 53,67,68,161,162]
-  -r, --rate-limit <RATE_LIMIT>            Rate limiting delay in milliseconds between scans [default: 0]
-  -x, --timing-template <TIMING_TEMPLATE>  Timing template: paranoid, sneaky, polite, normal, aggressive, insane [default: normal]
-      --stealth-mode <STEALTH_MODE>        Enable stealth scanning mode (ghost, ninja, shadow)
-      --cve-scan                           Enable automatic CVE scanning
-      --cve-database <CVE_DATABASE>        Custom CVE database path [default: nextmap_cve.db]
+  -o, --output-format <OUTPUT_FORMAT>      Output format [default: human]
+  -T, --timeout <TIMEOUT>                  Connection timeout in ms [default: 1000]
+  -c, --concurrency <CONCURRENCY>          Max concurrent tasks [default: 100]
+  -f, --output-file <OUTPUT_FILE>          Save output to file
+  -U, --udp-scan                           Enable UDP scanning
+      --udp-ports <UDP_PORTS>              UDP ports to scan
+  -r, --rate-limit <RATE_LIMIT>            Rate limiting delay in ms [default: 0]
+  -x, --timing-template <TIMING_TEMPLATE>  Timing: paranoid, sneaky, polite, normal, aggressive, insane
+      --stealth-mode <STEALTH_MODE>        Stealth mode: ghost, ninja, shadow
+      --cve-scan                           Enable CVE vulnerability scanning
+      --cve-database <CVE_DATABASE>        CVE database path [default: nextmap_cve.db]
       --update-cve                         Update CVE database before scanning
   -h, --help                               Print help
   -V, --version                            Print version
+```
+
+### Port Selection Options
+
+```bash
+# Default: nmap-compatible top 1000 ports
+nextmap --target 192.168.1.1
+
+# Quick scan: top 100 most common ports
+nextmap --target 192.168.1.1 --ports "top100"
+
+# Comprehensive: all 65535 ports (slow!)
+nextmap --target 192.168.1.1 --ports "all"
+
+# Custom: specific ports or ranges
+nextmap --target 192.168.1.1 --ports "80,443,22-25"
 ```
 
 ## 🎯 Examples
@@ -304,9 +314,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support
 
-- 📚 [Documentation](https://github.com/your-username/nextmap/wiki)
-- 🐛 [Report Issues](https://github.com/your-username/nextmap/issues)
-- 💬 [Discussions](https://github.com/your-username/nextmap/discussions)
+- 📚 [Documentation](https://github.com/pozivo/nextmap/wiki)
+- 🐛 [Report Issues](https://github.com/pozivo/nextmap/issues)
+- 💬 [Discussions](https://github.com/pozivo/nextmap/discussions)
 
 ---
 
