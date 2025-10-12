@@ -1,0 +1,88 @@
+<svg width="1200" height="630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f172a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#1e293b;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#334155;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#06b6d4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#8b5cf6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  
+  <!-- Grid pattern -->
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#475569" stroke-width="0.5" opacity="0.3"/>
+  </pattern>
+  <rect width="1200" height="630" fill="url(#grid)"/>
+  
+  <!-- Main Title -->
+  <text x="600" y="180" font-family="Arial Black, sans-serif" font-size="84" font-weight="900" 
+        text-anchor="middle" fill="url(#accent)">NextMap</text>
+  
+  <!-- Version -->
+  <text x="600" y="220" font-family="Arial, sans-serif" font-size="28" font-weight="300" 
+        text-anchor="middle" fill="#e2e8f0">v0.2.0</text>
+  
+  <!-- Subtitle -->
+  <text x="600" y="270" font-family="Arial, sans-serif" font-size="32" font-weight="500" 
+        text-anchor="middle" fill="#cbd5e1">Next Generation Network Scanner</text>
+  
+  <!-- Features -->
+  <g transform="translate(100, 340)">
+    <!-- Stealth Icon -->
+    <circle cx="50" cy="30" r="25" fill="#8b5cf6" opacity="0.2"/>
+    <text x="50" y="38" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#8b5cf6">🥷</text>
+    <text x="100" y="25" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#e2e8f0">Stealth Scanning</text>
+    <text x="100" y="45" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">Ghost • Ninja • Shadow</text>
+    
+    <!-- CVE Icon -->
+    <circle cx="350" cy="30" r="25" fill="#06b6d4" opacity="0.2"/>
+    <text x="350" y="38" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#06b6d4">🛡️</text>
+    <text x="400" y="25" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#e2e8f0">CVE Detection</text>
+    <text x="400" y="45" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">NIST • CVSS • Auto-Scan</text>
+    
+    <!-- Performance Icon -->
+    <circle cx="650" cy="30" r="25" fill="#10b981" opacity="0.2"/>
+    <text x="650" y="38" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#10b981">⚡</text>
+    <text x="700" y="25" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#e2e8f0">Full Port Scan</text>
+    <text x="700" y="45" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">1-65535 • Multi-Format</text>
+    
+    <!-- Professional Icon -->
+    <circle cx="950" cy="30" r="25" fill="#f59e0b" opacity="0.2"/>
+    <text x="950" y="38" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#f59e0b">🎯</text>
+    <text x="1000" y="25" font-family="Arial, sans-serif" font-size="18" font-weight="600" fill="#e2e8f0">Enterprise Ready</text>
+    <text x="1000" y="45" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">JSON • XML • CSV • MD</text>
+  </g>
+  
+  <!-- Network visualization -->
+  <g transform="translate(50, 480)" opacity="0.4">
+    <!-- Nodes -->
+    <circle cx="100" cy="50" r="8" fill="#06b6d4"/>
+    <circle cx="200" cy="30" r="6" fill="#8b5cf6"/>
+    <circle cx="300" cy="70" r="7" fill="#10b981"/>
+    <circle cx="400" cy="40" r="5" fill="#f59e0b"/>
+    <circle cx="500" cy="60" r="9" fill="#ef4444"/>
+    <circle cx="600" cy="35" r="6" fill="#06b6d4"/>
+    <circle cx="700" cy="55" r="7" fill="#8b5cf6"/>
+    <circle cx="800" cy="45" r="8" fill="#10b981"/>
+    <circle cx="900" cy="65" r="6" fill="#f59e0b"/>
+    <circle cx="1000" cy="40" r="7" fill="#ef4444"/>
+    
+    <!-- Connections -->
+    <path d="M100 50 L200 30 L300 70 L400 40 L500 60 L600 35 L700 55 L800 45 L900 65 L1000 40" 
+          fill="none" stroke="#475569" stroke-width="2"/>
+  </g>
+  
+  <!-- Download hint -->
+  <text x="600" y="580" font-family="Arial, sans-serif" font-size="16" text-anchor="middle" 
+        fill="#64748b">Download for Windows • Linux • macOS</text>
+  
+  <!-- GitHub logo/link hint -->
+  <text x="600" y="610" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" 
+        fill="#475569">github.com/pozivo/nextmap</text>
+</svg>

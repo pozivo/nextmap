@@ -1,0 +1,105 @@
+<svg width="900" height="600" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="terminal-bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#0f0f23;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1a1a2e;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Terminal Window -->
+  <rect width="900" height="600" rx="12" fill="url(#terminal-bg)" stroke="#333" stroke-width="2"/>
+  
+  <!-- Terminal Header -->
+  <rect width="900" height="40" rx="12" fill="#2a2a3e"/>
+  <rect y="40" width="900" height="2" fill="#444"/>
+  
+  <!-- Window Controls -->
+  <circle cx="20" cy="20" r="6" fill="#ff5f57"/>
+  <circle cx="40" cy="20" r="6" fill="#ffbd2e"/>
+  <circle cx="60" cy="20" r="6" fill="#28ca42"/>
+  
+  <!-- Terminal Title -->
+  <text x="450" y="27" font-family="SF Pro Display, Arial, sans-serif" font-size="14" font-weight="500" 
+        text-anchor="middle" fill="#e0e0e0">NextMap v0.2.0 - Network Scanner</text>
+  
+  <!-- Terminal Content -->
+  <g transform="translate(20, 60)" font-family="SF Mono, Consolas, monospace" font-size="14">
+    <!-- Command line -->
+    <text x="0" y="20" fill="#50fa7b">pozivo@kali</text>
+    <text x="80" y="20" fill="#f8f8f2">:</text>
+    <text x="90" y="20" fill="#8be9fd">~/nextmap</text>
+    <text x="170" y="20" fill="#f8f8f2">$</text>
+    <text x="190" y="20" fill="#f8f8f2">./nextmap --target 192.168.1.0/24 --stealth-mode ninja --cve-scan</text>
+    
+    <!-- Separator -->
+    <line x1="0" y1="35" x2="860" y2="35" stroke="#44475a" stroke-width="1"/>
+    
+    <!-- Output -->
+    <text x="0" y="60" fill="#8be9fd">🚀</text>
+    <text x="20" y="60" fill="#f8f8f2" font-weight="600">Starting NextMap scan...</text>
+    
+    <text x="0" y="80" fill="#bd93f9">🥷</text>
+    <text x="20" y="80" fill="#ff79c6">Stealth mode: </text>
+    <text x="130" y="80" fill="#bd93f9" font-weight="600">ninja enabled</text>
+    
+    <text x="0" y="100" fill="#50fa7b">🛡️</text>
+    <text x="20" y="100" fill="#50fa7b">CVE scanning: </text>
+    <text x="130" y="100" fill="#50fa7b" font-weight="600">ENABLED</text>
+    
+    <text x="0" y="120" fill="#f8f8f2">📍 Targets: </text>
+    <text x="80" y="120" fill="#50fa7b">254 hosts</text>
+    
+    <text x="0" y="140" fill="#f8f8f2">🔍 TCP Ports: </text>
+    <text x="100" y="140" fill="#50fa7b">65535 ports</text>
+    
+    <text x="0" y="160" fill="#ffb86c">⚠️  WARNING</text>
+    <text x="80" y="160" fill="#ffb86c">: Scanning 65535 TCP ports. This may take several minutes.</text>
+    
+    <text x="0" y="180" fill="#8be9fd">💡 TIP</text>
+    <text x="50" y="180" fill="#8be9fd">: Use --ports "1-1000" for faster results</text>
+    
+    <!-- Progress bar -->
+    <text x="0" y="210" fill="#f8f8f2">Progress:</text>
+    <rect x="0" y="220" width="400" height="8" rx="4" fill="#44475a"/>
+    <rect x="0" y="220" width="240" height="8" rx="4" fill="#50fa7b"/>
+    <text x="410" y="228" fill="#f8f8f2">60% Complete</text>
+    
+    <!-- Results preview -->
+    <text x="0" y="260" fill="#ffb86c" font-weight="600">📊 SCAN RESULTS (Preview)</text>
+    
+    <text x="0" y="290" fill="#f8f8f2">🖥️  HOST: </text>
+    <text x="80" y="290" fill="#8be9fd">192.168.1.1</text>
+    <text x="200" y="290" fill="#50fa7b">[UP]</text>
+    
+    <text x="0" y="310" fill="#50fa7b">🟢 OPEN PORTS (5):</text>
+    
+    <text x="20" y="330" fill="#f8f8f2">22 tcp    </text>
+    <text x="100" y="330" fill="#ff79c6">ssh</text>
+    <text x="200" y="330" fill="#f8f8f2">OpenSSH 8.9</text>
+    
+    <text x="20" y="350" fill="#f8f8f2">80 tcp    </text>
+    <text x="100" y="350" fill="#ff79c6">http</text>
+    <text x="200" y="350" fill="#f8f8f2">Apache 2.4.52</text>
+    
+    <text x="20" y="370" fill="#f8f8f2">443 tcp   </text>
+    <text x="100" y="370" fill="#ff79c6">https</text>
+    <text x="200" y="370" fill="#f8f8f2">Apache 2.4.52</text>
+    
+    <text x="0" y="400" fill="#ffb86c">🟡 FILTERED PORTS: 65530 ports</text>
+    
+    <text x="0" y="430" fill="#ff5555">🚨 VULNERABILITIES (2):</text>
+    
+    <text x="20" y="450" fill="#ff5555">CVE-2023-0001</text>
+    <text x="150" y="450" fill="#ffb86c">[HIGH]</text>
+    <text x="220" y="450" fill="#f8f8f2">Apache HTTP Server vulnerability</text>
+    
+    <text x="0" y="480" fill="#50fa7b">⚡ Scan completed in 45.2 seconds</text>
+    
+    <!-- New prompt -->
+    <text x="0" y="520" fill="#50fa7b">pozivo@kali</text>
+    <text x="80" y="520" fill="#f8f8f2">:</text>
+    <text x="90" y="520" fill="#8be9fd">~/nextmap</text>
+    <text x="170" y="520" fill="#f8f8f2">$ </text>
+    <text x="190" y="520" fill="#6272a4">█</text>
+  </g>
+</svg>

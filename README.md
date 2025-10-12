@@ -189,7 +189,20 @@ nextmap --target example.com --rate-limit 1000 --concurrency 50
 ## 📖 Usage
 
 ```
-🔍 Next generation network scanner with stealth capabilities and CVE detection.
+# 🔍 NextMap - Advanced Network Scanner
+
+<div align="center">
+
+![NextMap Banner](assets/logo-banner.svg)
+
+[![GitHub Release](https://img.shields.io/github/v/release/pozivo/nextmap)](https://github.com/pozivo/nextmap/releases)
+[![Downloads](https://img.shields.io/github/downloads/pozivo/nextmap/total)](https://github.com/pozivo/nextmap/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)](https://github.com/pozivo/nextmap/releases)
+
+**Next generation network scanner with advanced stealth capabilities and CVE vulnerability detection.**
+
+</div>
 
 Usage: nextmap [OPTIONS] --target <TARGET>
 
