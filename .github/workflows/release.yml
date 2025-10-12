@@ -1,0 +1,170 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            name: nextmap-linux-x64
+            asset_name: nextmap-linux-x64.tar.gz
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            name: nextmap-linux-musl-x64
+            asset_name: nextmap-linux-musl-x64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            name: nextmap-windows-x64
+            asset_name: nextmap-windows-x64.zip
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            name: nextmap-macos-x64
+            asset_name: nextmap-macos-x64.tar.gz
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            name: nextmap-macos-arm64
+            asset_name: nextmap-macos-arm64.tar.gz
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: ${{ matrix.target }}
+
+    - name: Install musl tools (Linux musl only)
+      if: matrix.target == 'x86_64-unknown-linux-musl'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y musl-tools
+
+    - name: Cache cargo dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Build binary
+      run: cargo build --release --target ${{ matrix.target }}
+
+    - name: Strip binary (Unix)
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      run: strip target/${{ matrix.target }}/release/nextmap
+
+    - name: Create archive (Unix)
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      run: |
+        mkdir -p release
+        cp target/${{ matrix.target }}/release/nextmap release/
+        cp README.md release/ 2>/dev/null || echo "README.md not found"
+        cp LICENSE release/ 2>/dev/null || echo "LICENSE not found"
+        cd release
+        tar -czf ../${{ matrix.asset_name }} *
+
+    - name: Create archive (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        mkdir release
+        copy target\${{ matrix.target }}\release\nextmap.exe release\
+        copy README.md release\ 2>nul || echo README.md not found
+        copy LICENSE release\ 2>nul || echo LICENSE not found
+        cd release
+        7z a ..\${{ matrix.asset_name }} *
+
+    - name: Upload Release Asset
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.name }}
+        path: ${{ matrix.asset_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: NextMap ${{ github.ref_name }}
+        body: |
+          # NextMap ${{ github.ref_name }} 🚀
+          
+          ## 📥 Downloads
+          
+          Choose the appropriate binary for your platform:
+          
+          ### Windows
+          - **nextmap-windows-x64.zip** - Windows 10/11 (64-bit)
+          
+          ### Linux
+          - **nextmap-linux-x64.tar.gz** - Most Linux distributions (64-bit)
+          - **nextmap-linux-musl-x64.tar.gz** - Static binary for minimal systems
+          
+          ### macOS
+          - **nextmap-macos-x64.tar.gz** - Intel Macs (64-bit)
+          - **nextmap-macos-arm64.tar.gz** - Apple Silicon Macs (M1/M2)
+          
+          ## 🚀 Quick Start
+          
+          1. Download the appropriate binary for your system
+          2. Extract the archive
+          3. Run `./nextmap --help` to see all options
+          4. Start scanning: `./nextmap --target 192.168.1.1 -s`
+          
+          ## ✨ Features
+          
+          - 🔍 TCP & UDP port scanning
+          - 🖥️ OS fingerprinting
+          - 🚨 Vulnerability detection
+          - 📊 Multiple output formats (Human, JSON, YAML, XML, CSV, Markdown)
+          - ⚡ Configurable timing and concurrency
+          - 🎯 CIDR and IP range support
+          
+          ## 📚 Documentation
+          
+          See the [README](https://github.com/${{ github.repository }}) for detailed usage instructions.
+          
+          ---
+          
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.1.0...${{ github.ref_name }}
+        draft: false
+        prerelease: false
+
+    - name: Upload Release Assets
+      run: |
+        for asset in */nextmap-*; do
+          echo "Uploading $asset"
+          gh release upload ${{ github.ref_name }} "$asset" --clobber
+        done
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
