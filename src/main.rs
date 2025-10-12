@@ -323,6 +323,141 @@ async fn grab_banner(stream: &mut TcpStream, port: u16, timeout: Duration) -> Op
     }
 }
 
+// Mappatura di base dei servizi (senza banner grabbing)
+async fn map_basic_service(mut port: Port) -> (Port, Vec<Vulnerability>) {
+    let mut vulns = Vec::new();
+    
+    if port.state == PortState::Open {
+        // Identificazione servizi basata solo su porte standard
+        match (port.port_id, port.protocol.as_str()) {
+            // Servizi TCP comuni
+            (21, "tcp") => {
+                port.service_name = Some("ftp".to_string());
+                port.service_version = Some("FTP Server".to_string());
+            }
+            (22, "tcp") => {
+                port.service_name = Some("ssh".to_string());
+                port.service_version = Some("SSH Server".to_string());
+            }
+            (23, "tcp") => {
+                port.service_name = Some("telnet".to_string());
+                port.service_version = Some("Telnet Server".to_string());
+            }
+            (25, "tcp") => {
+                port.service_name = Some("smtp".to_string());
+                port.service_version = Some("SMTP Server".to_string());
+            }
+            (53, "tcp") => {
+                port.service_name = Some("domain".to_string());
+                port.service_version = Some("DNS Server".to_string());
+            }
+            (80, "tcp") => {
+                port.service_name = Some("http".to_string());
+                port.service_version = Some("HTTP Server".to_string());
+            }
+            (110, "tcp") => {
+                port.service_name = Some("pop3".to_string());
+                port.service_version = Some("POP3 Server".to_string());
+            }
+            (143, "tcp") => {
+                port.service_name = Some("imap".to_string());
+                port.service_version = Some("IMAP Server".to_string());
+            }
+            (443 | 8443, "tcp") => {
+                port.service_name = Some("https".to_string());
+                port.service_version = Some("HTTPS Server".to_string());
+            }
+            (993, "tcp") => {
+                port.service_name = Some("imaps".to_string());
+                port.service_version = Some("IMAP over SSL".to_string());
+            }
+            (995, "tcp") => {
+                port.service_name = Some("pop3s".to_string());
+                port.service_version = Some("POP3 over SSL".to_string());
+            }
+            (3389, "tcp") => {
+                port.service_name = Some("ms-wbt-server".to_string());
+                port.service_version = Some("Remote Desktop".to_string());
+            }
+            (5432, "tcp") => {
+                port.service_name = Some("postgresql".to_string());
+                port.service_version = Some("PostgreSQL".to_string());
+            }
+            (3306, "tcp") => {
+                port.service_name = Some("mysql".to_string());
+                port.service_version = Some("MySQL".to_string());
+            }
+            
+            // Windows services comuni
+            (135, "tcp") => {
+                port.service_name = Some("msrpc".to_string());
+                port.service_version = Some("Microsoft RPC Endpoint Mapper".to_string());
+            }
+            (445, "tcp") => {
+                port.service_name = Some("microsoft-ds".to_string());
+                port.service_version = Some("Microsoft Directory Services".to_string());
+            }
+            (139, "tcp") => {
+                port.service_name = Some("netbios-ssn".to_string());
+                port.service_version = Some("NetBIOS Session Service".to_string());
+            }
+            
+            // VMware services
+            (902, "tcp") => {
+                port.service_name = Some("vmware-authd".to_string());
+                port.service_version = Some("VMware Authentication Daemon".to_string());
+            }
+            (912, "tcp") => {
+                port.service_name = Some("vmware-authd".to_string());
+                port.service_version = Some("VMware Authentication Daemon".to_string());
+            }
+            
+            // Servizi custom/altri
+            (1337, "tcp") => {
+                port.service_name = Some("custom-service".to_string());
+                port.service_version = Some("Custom Application".to_string());
+            }
+            
+            // Servizi UDP comuni
+            (53, "udp") => {
+                port.service_name = Some("domain".to_string());
+                port.service_version = Some("DNS Server".to_string());
+            }
+            (67, "udp") => {
+                port.service_name = Some("dhcps".to_string());
+                port.service_version = Some("DHCP Server".to_string());
+            }
+            (68, "udp") => {
+                port.service_name = Some("dhcpc".to_string());
+                port.service_version = Some("DHCP Client".to_string());
+            }
+            (123, "udp") => {
+                port.service_name = Some("ntp".to_string());
+                port.service_version = Some("Network Time Protocol".to_string());
+            }
+            (161, "udp") => {
+                port.service_name = Some("snmp".to_string());
+                port.service_version = Some("SNMP Agent".to_string());
+            }
+            
+            _ => {
+                // Mappatura intelligente per porte non specifiche
+                let (service, version) = match (port.port_id, port.protocol.as_str()) {
+                    (8000..=8999, "tcp") => ("http-alt", "HTTP Alternative"),
+                    (1..=1023, _) => ("system", "System Service"),
+                    (1024..=49151, _) => ("registered", "Registered Service"),
+                    _ => ("unknown", "Unknown Service"),
+                };
+                
+                port.service_name = Some(service.to_string());
+                port.service_version = Some(version.to_string());
+            }
+        }
+    }
+    
+    (port, vulns)
+}
+
 // Analizza le porte aperte e identifica i servizi
 async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
     let mut vulns = Vec::new();
@@ -448,6 +583,36 @@ async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
                     port.service_version = Some("MongoDB".to_string());
                 }
                 
+                // Windows services comuni
+                (135, "tcp") => {
+                    port.service_name = Some("msrpc".to_string());
+                    port.service_version = Some("Microsoft RPC Endpoint Mapper".to_string());
+                }
+                (445, "tcp") => {
+                    port.service_name = Some("microsoft-ds".to_string());
+                    port.service_version = Some("Microsoft Directory Services".to_string());
+                }
+                (139, "tcp") => {
+                    port.service_name = Some("netbios-ssn".to_string());
+                    port.service_version = Some("NetBIOS Session Service".to_string());
+                }
+                
+                // VMware services
+                (902, "tcp") => {
+                    port.service_name = Some("vmware-authd".to_string());
+                    port.service_version = Some("VMware Authentication Daemon".to_string());
+                }
+                (912, "tcp") => {
+                    port.service_name = Some("vmware-authd".to_string());
+                    port.service_version = Some("VMware Authentication Daemon".to_string());
+                }
+                
+                // Servizi custom/altri
+                (1337, "tcp") => {
+                    port.service_name = Some("custom-service".to_string());
+                    port.service_version = Some("Custom Application".to_string());
+                }
+                
                 // Servizi UDP
                 (53, "udp") => {
                     port.service_name = Some("domain".to_string());
@@ -497,8 +662,81 @@ async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
                 }
                 
                 _ => {
-                    port.service_name = Some("unknown".to_string());
-                    port.service_version = Some("Unknown".to_string());
+                    // Mappatura intelligente per porte comuni non ancora coperte
+                    let (service, version) = match (port.port_id, port.protocol.as_str()) {
+                        // Web services aggiuntivi
+                        (8000, "tcp") | (8008, "tcp") => ("http-alt", "HTTP Alternative"),
+                        (8443, "tcp") => ("https-alt", "HTTPS Alternative"),
+                        (8888, "tcp") => ("jupyter", "Jupyter Notebook"),
+                        (9000, "tcp") => ("portainer", "Portainer"),
+                        (9090, "tcp") => ("websm", "WebSphere Admin"),
+                        
+                        // Database ports
+                        (1521, "tcp") => ("oracle", "Oracle Database"),
+                        (1527, "tcp") => ("derby", "Apache Derby"),
+                        (1830, "tcp") => ("oracle-net8", "Oracle Net8"),
+                        (3050, "tcp") => ("firebird", "Firebird Database"),
+                        (5984, "tcp") => ("couchdb", "CouchDB"),
+                        (8086, "tcp") => ("influxdb", "InfluxDB"),
+                        (9042, "tcp") => ("cassandra", "Cassandra"),
+                        (9200, "tcp") => ("elasticsearch", "Elasticsearch"),
+                        
+                        // Mail services
+                        (587, "tcp") => ("smtp-submission", "SMTP Submission"),
+                        (465, "tcp") => ("smtps", "SMTP over SSL"),
+                        (2525, "tcp") => ("smtp-alt", "SMTP Alternative"),
+                        
+                        // Remote access
+                        (5900, "tcp") => ("vnc", "VNC Remote Desktop"),
+                        (5901, "tcp") => ("vnc-1", "VNC Display 1"),
+                        (5902, "tcp") => ("vnc-2", "VNC Display 2"),
+                        (5985, "tcp") => ("winrm", "Windows Remote Management"),
+                        (5986, "tcp") => ("winrm-s", "WinRM over HTTPS"),
+                        
+                        // Application servers
+                        (8080, "tcp") => ("http-proxy", "HTTP Proxy/Tomcat"),
+                        (8081, "tcp") => ("http-alt", "HTTP Alternative"),
+                        (8090, "tcp") => ("http-alt", "HTTP Alternative"),
+                        (9443, "tcp") => ("websphere", "IBM WebSphere"),
+                        (7001, "tcp") => ("weblogic", "Oracle WebLogic"),
+                        (7002, "tcp") => ("weblogic-ssl", "WebLogic SSL"),
+                        
+                        // Development/API
+                        (3000, "tcp") => ("node", "Node.js App"),
+                        (4000, "tcp") => ("dev-server", "Development Server"),
+                        (5000, "tcp") => ("flask", "Flask/Development"),
+                        (8501, "tcp") => ("streamlit", "Streamlit App"),
+                        
+                        // Monitoring/Management
+                        (2049, "tcp") => ("nfs", "Network File System"),
+                        (8140, "tcp") => ("puppet", "Puppet Master"),
+                        
+                        // Game servers
+                        (25565, "tcp") => ("minecraft", "Minecraft Server"),
+                        (27015, "tcp") => ("srcds", "Source Game Server"),
+                        
+                        // IoT/Embedded
+                        (1883, "tcp") => ("mqtt", "MQTT Broker"),
+                        (8883, "tcp") => ("mqtt-ssl", "MQTT over SSL"),
+                        (502, "tcp") => ("modbus", "Modbus"),
+                        
+                        // High ports patterns
+                        (49152..=65535, "tcp") => ("dynamic", "Dynamic/Private"),
+                        
+                        // UDP services aggiuntivi
+                        (123, "udp") => ("ntp", "Network Time Protocol"),
+                        (1812, "udp") => ("radius", "RADIUS Authentication"),
+                        (1813, "udp") => ("radius-acct", "RADIUS Accounting"),
+                        (5060, "udp") => ("sip", "Session Initiation Protocol"),
+                        
+                        // Se non riconosciuto, usa categoria basata su range
+                        (1..=1023, _) => ("system", "System/Well-known"),
+                        (1024..=49151, _) => ("registered", "Registered/User"),
+                        _ => ("unknown", "Unknown Service"),
+                    };
+                    
+                    port.service_name = Some(service.to_string());
+                    port.service_version = Some(version.to_string());
                 }
             }
         }
@@ -707,9 +945,7 @@ fn generate_human_output(scan_results: &ScanResult) -> String {
         
         // Porte filtrate
         if !filtered_ports.is_empty() {
-            output.push_str(&format!("\n🟡 FILTERED PORTS ({}): ", filtered_ports.len().to_string().yellow()));
-            let filtered_list: Vec<String> = filtered_ports.iter().map(|p| p.port_id.to_string()).collect();
-            output.push_str(&format!("{}\n", filtered_list.join(", ").dimmed()));
+            output.push_str(&format!("\n🟡 FILTERED PORTS: {} ports\n", filtered_ports.len().to_string().yellow()));
         }
         
         // Vulnerabilità
@@ -1061,8 +1297,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 pb_clone.inc(1);
                 
-                if result.state == PortState::Open && service_scan {
-                    analyze_open_port(result).await
+                if result.state == PortState::Open {
+                    if service_scan {
+                        analyze_open_port(result).await
+                    } else {
+                        // Mappatura base servizi anche senza service_scan
+                        let (mut port, vulns) = map_basic_service(result).await;
+                        // Non fare banner grabbing se service_scan è false
+                        port.banner = None;
+                        (port, vulns)
+                    }
                 } else {
                     (result, Vec::new())
                 }
