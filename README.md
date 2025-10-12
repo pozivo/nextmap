@@ -1,24 +1,43 @@
-# 🔍 NextMap - Next Generation Network Scanner
+# 🔍 NextMap - Advanced Network Scanner with Stealth & CVE Detection
 
-[![Release](https://img.shields.io/github/v/release/your-username/nextmap)](https://github.com/your-username/nextmap/releases)
-[![License](https://img.shields.io/github/license/your-username/nextmap)](LICENSE)
-[![Build](https://img.shields.io/github/actions/workflow/status/your-username/nextmap/release.yml)](https://github.com/your-username/nextmap/actions)
+[![Release](https://img.shields.io/github/v/release/pozivo/nextmap)](https://github.com/pozivo/nextmap/releases)
+[![License](https://img.shields.io/github/license/pozivo/nextmap)](LICENSE)
+[![Build](https://img.shields.io/github/actions/workflow/status/pozivo/nextmap/release.yml)](https://github.com/pozivo/nextmap/actions)
 
-NextMap is a modern, fast, and feature-rich network scanner built in Rust. It provides comprehensive network reconnaissance capabilities with a clean, colorful interface and multiple output formats.
+NextMap is a modern, fast, and feature-rich network scanner built in Rust with advanced stealth capabilities and automatic CVE detection. Perfect for penetration testing, security assessments, and network reconnaissance.
 
 ![NextMap Demo](assets/demo.gif)
 
 ## ✨ Features
 
-- 🚀 **High Performance** - Async I/O with configurable concurrency
-- 🔍 **Multi-Protocol** - TCP and UDP port scanning
-- 🖥️ **OS Detection** - Smart fingerprinting based on service patterns
-- 🚨 **Vulnerability Detection** - Built-in security checks
-- 📊 **Multiple Output Formats** - Human-readable, JSON, YAML, XML, CSV, Markdown
-- 🎯 **Flexible Targeting** - Single IPs, ranges, and CIDR notation
-- ⚡ **Timing Templates** - From stealth to aggressive scanning modes
-- 🌈 **Beautiful Output** - Colorized terminal output with progress bars
-- 🛡️ **Rate Limiting** - Respectful scanning with configurable delays
+### 🚀 **Core Scanning**
+- **High Performance** - Async I/O with configurable concurrency
+- **Multi-Protocol** - TCP and UDP port scanning
+- **Smart Targeting** - Single IPs, ranges, and CIDR notation
+- **Flexible Port Selection** - Individual ports, ranges, and common presets
+
+### 🥷 **Stealth Capabilities** 
+- **SYN Stealth Scanning** - Avoid connection logging
+- **Packet Fragmentation** - Evade firewall detection
+- **Decoy IP Generation** - Confuse IDS/IPS systems
+- **Timing Variance** - Random delays to avoid pattern detection
+- **Source Port Spoofing** - Use common ports (53, 20, etc.)
+- **Multiple Stealth Presets** - Ghost, Ninja, Shadow modes
+
+### �️ **CVE Integration**
+- **Automatic CVE Scanning** - Real-time vulnerability detection
+- **NIST Database Updates** - Fresh vulnerability data
+- **Service-to-CVE Mapping** - Intelligent vulnerability correlation
+- **CVSS Scoring** - Risk assessment and prioritization
+- **Offline Operation** - Local SQLite database for speed
+
+### 🎯 **Advanced Features**
+- **OS Detection** - Smart fingerprinting based on service patterns
+- **Service Detection** - Banner grabbing and protocol analysis
+- **Multiple Output Formats** - Human-readable, JSON, YAML, XML, CSV, Markdown
+- **Rate Limiting** - Respectful scanning with configurable delays
+- **Timing Templates** - From stealth to aggressive scanning modes
+- **Beautiful Output** - Colorized terminal output with progress bars
 
 ## 📥 Installation
 
@@ -88,6 +107,32 @@ nextmap --target example.com --ports "80,443,22" -s
 nextmap --target 192.168.1.1 -s -O
 ```
 
+### Stealth Scanning
+
+```bash
+# Ghost mode - Maximum stealth with fragmentation and decoys
+nextmap --target sensitive.com --stealth-mode ghost --ports "80,443,22"
+
+# Ninja mode - Balanced stealth with SYN scanning
+nextmap --target target.com --stealth-mode ninja -s
+
+# Shadow mode - Lightweight stealth
+nextmap --target 192.168.1.0/24 --stealth-mode shadow --timing-template sneaky
+```
+
+### CVE Vulnerability Scanning
+
+```bash
+# Basic CVE scanning
+nextmap --target server.com --cve-scan --ports "21,22,80,443" -s
+
+# Update CVE database and scan
+nextmap --target 10.0.0.0/16 --cve-scan --update-cve --timing-template polite
+
+# Combined stealth + CVE scanning
+nextmap --target production.com --stealth-mode shadow --cve-scan -s -O
+```
+
 ### Advanced Scanning
 
 ```bash
@@ -139,23 +184,27 @@ nextmap --target example.com --rate-limit 1000 --concurrency 50
 ## 📖 Usage
 
 ```
-Network Explorer and Tracer - The next generation network scanner
+🔍 Next generation network scanner with stealth capabilities and CVE detection.
 
 Usage: nextmap [OPTIONS] --target <TARGET>
 
 Options:
-  -t, --target <TARGET>                    Target IP, range, or CIDR (e.g., 192.168.1.1-254, 192.168.1.0/24)
-  -p, --ports <PORTS>                      Ports to scan [default: 21,22,23,25,53,80,110,143,443,993,995,3389,3306,5432]
+  -t, --target <TARGET>                    Target IP, IP range (e.g., 192.168.1.1-254) or CIDR (e.g., 192.168.1.0/24) to scan
+  -p, --ports <PORTS>                      Ports to scan (e.g., "80,443,22-25") [default: 21,22,23,25,53,80,110,143,443,993,995,3389,3306,5432]
   -s, --service-scan                       Enable service detection and vulnerability analysis
   -O, --os-scan                            Enable OS fingerprinting
-  -o, --output-format <OUTPUT_FORMAT>      Output format [default: human] [possible values: human, json, yaml, xml, csv, md]
+  -o, --output-format <OUTPUT_FORMAT>      Output format (human, json, yaml, xml, csv, md) [default: human]
   -T, --timeout <TIMEOUT>                  Connection timeout in milliseconds [default: 1000]
   -c, --concurrency <CONCURRENCY>          Maximum concurrent tasks [default: 100]
-  -f, --output-file <OUTPUT_FILE>          Save output to file
-  -U, --udp-scan                           Enable UDP scanning
-      --udp-ports <UDP_PORTS>              UDP ports to scan [default: 53,67,68,161,162]
-  -r, --rate-limit <RATE_LIMIT>            Rate limiting delay in milliseconds [default: 0]
-  -x, --timing-template <TIMING_TEMPLATE>  Timing template [default: normal] [possible values: paranoid, sneaky, polite, normal, aggressive, insane]
+  -f, --output-file <OUTPUT_FILE>          Save output to file instead of stdout
+  -U, --udp-scan                           Enable UDP scanning in addition to TCP
+      --udp-ports <UDP_PORTS>              UDP ports to scan (default: DNS, DHCP, SNMP) [default: 53,67,68,161,162]
+  -r, --rate-limit <RATE_LIMIT>            Rate limiting delay in milliseconds between scans [default: 0]
+  -x, --timing-template <TIMING_TEMPLATE>  Timing template: paranoid, sneaky, polite, normal, aggressive, insane [default: normal]
+      --stealth-mode <STEALTH_MODE>        Enable stealth scanning mode (ghost, ninja, shadow)
+      --cve-scan                           Enable automatic CVE scanning
+      --cve-database <CVE_DATABASE>        Custom CVE database path [default: nextmap_cve.db]
+      --update-cve                         Update CVE database before scanning
   -h, --help                               Print help
   -V, --version                            Print version
 ```

@@ -9,17 +9,17 @@ if not exist releases mkdir releases
 cd releases
 
 echo Installing required targets...
-rustup target add x86_64-unknown-linux-gnu
-rustup target add x86_64-unknown-linux-musl
-rustup target add x86_64-pc-windows-msvc
-rustup target add x86_64-apple-darwin
-rustup target add aarch64-apple-darwin
+C:\Users\poziv\.cargo\bin\rustup.exe target add x86_64-unknown-linux-gnu
+C:\Users\poziv\.cargo\bin\rustup.exe target add x86_64-unknown-linux-musl
+C:\Users\poziv\.cargo\bin\rustup.exe target add x86_64-pc-windows-msvc
+C:\Users\poziv\.cargo\bin\rustup.exe target add x86_64-apple-darwin
+C:\Users\poziv\.cargo\bin\rustup.exe target add aarch64-apple-darwin
 
 echo Building binaries...
 
 REM Windows x64
 echo Building for Windows x64...
-cargo build --release --target x86_64-pc-windows-msvc
+C:\Users\poziv\.cargo\bin\cargo.exe build --release --target x86_64-pc-windows-msvc
 if %errorlevel% equ 0 (
     echo ✅ Build successful for Windows x64
     mkdir windows-x64
@@ -35,7 +35,7 @@ if %errorlevel% equ 0 (
 
 REM Linux x64 (requires WSL or Docker for full cross-compilation)
 echo Building for Linux x64...
-cargo build --release --target x86_64-unknown-linux-gnu
+C:\Users\poziv\.cargo\bin\cargo.exe build --release --target x86_64-unknown-linux-gnu
 if %errorlevel% equ 0 (
     echo ✅ Build successful for Linux x64
     mkdir linux-x64

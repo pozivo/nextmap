@@ -11,65 +11,86 @@ use indicatif::{ProgressBar, ProgressStyle};
 use std::sync::Arc;
 use regex;
 
-// Dichiara il modulo models (deve corrispondere al nome del file)
+// Dichiara i moduli
 mod models;
-use models::*; 
+mod stealth;
+mod cve;
 
-// --- Configurazione CLI con clap ---
+use models::*;
+use stealth::*;
+use cve::*; 
+
+// --- CLI Configuration with clap ---
 
 #[derive(Parser, Debug)]
-#[command(author = "NextMap Dev Team", version, about = "Network Explorer and Tracer - The next generation network scanner.", long_about = None)]
+#[command(author = "NextMap Dev Team", version, about = "🔍 Next generation network scanner with stealth capabilities and CVE detection.", long_about = None)]
 struct Args {
-    /// L'host, range IP (es. 192.168.1.1-254) o CIDR (es. 192.168.1.0/24) da scansionare
+    /// Target IP, IP range (e.g., 192.168.1.1-254) or CIDR (e.g., 192.168.1.0/24) to scan
     #[arg(short, long)]
     target: String,
 
-    /// Lista di porte da scansionare (es. "80,443,22-25")
+    /// Ports to scan (e.g., "80,443,22-25")
     #[arg(short, long, default_value = "21,22,23,25,53,80,110,143,443,993,995,3389,3306,5432")]
     ports: String,
     
-    /// Abilita la scansione dei servizi e l'analisi delle vulnerabilità
+    /// Enable service detection and vulnerability analysis
     #[arg(short = 's', long, default_value_t = false)]
     service_scan: bool, 
     
-    /// Abilita il rilevamento del sistema operativo (OS Fingerprinting)
+    /// Enable OS fingerprinting
     #[arg(short = 'O', long, default_value_t = false)]
     os_scan: bool,
     
-    /// Specifica il formato di output (human, json, yaml, xml, csv, md)
+    /// Output format (human, json, yaml, xml, csv, md)
     #[arg(short, long, default_value = "human")]
     output_format: String,
 
-    /// Timeout per le connessioni in millisecondi
+    /// Connection timeout in milliseconds
     #[arg(short = 'T', long, default_value_t = 1000)]
     timeout: u64,
 
-    /// Numero massimo di task concorrenti
+    /// Maximum concurrent tasks
     #[arg(short, long, default_value_t = 100)]
     concurrency: usize,
 
-    /// Salva l'output su file invece di stdout
+    /// Save output to file instead of stdout
     #[arg(short = 'f', long)]
     output_file: Option<String>,
 
-    /// Abilita scansione UDP oltre TCP
+    /// Enable UDP scanning in addition to TCP
     #[arg(short = 'U', long, default_value_t = false)]
     udp_scan: bool,
 
-    /// Porte UDP da scansionare (default: DNS, DHCP, SNMP)
+    /// UDP ports to scan (default: DNS, DHCP, SNMP)
     #[arg(long, default_value = "53,67,68,161,162")]
     udp_ports: String,
 
-    /// Rate limiting: millisecondi di pausa tra le scansioni
+    /// Rate limiting delay in milliseconds between scans
     #[arg(short = 'r', long, default_value_t = 0)]
     rate_limit: u64,
 
-    /// Modalità timing: paranoid, sneaky, polite, normal, aggressive, insane
+    /// Timing template: paranoid, sneaky, polite, normal, aggressive, insane
     #[arg(short = 'x', long, default_value = "normal")]
     timing_template: String,
+
+    /// Enable stealth scanning mode (ghost, ninja, shadow)
+    #[arg(long)]
+    stealth_mode: Option<String>,
+
+    /// Enable automatic CVE scanning
+    #[arg(long, default_value_t = false)]
+    cve_scan: bool,
+
+    /// Custom CVE database path
+    #[arg(long, default_value = "nextmap_cve.db")]
+    cve_database: String,
+
+    /// Update CVE database before scanning
+    #[arg(long, default_value_t = false)]
+    update_cve: bool,
 }
 
-// --- Funzioni di Supporto ---
+// --- Support Functions ---
 
 // Parse target input (singolo IP, range o CIDR)
 fn parse_targets(target_input: &str) -> Result<Vec<String>, Box<dyn std::error::Error>> {
@@ -132,14 +153,14 @@ fn parse_ports(ports_input: &str) -> Result<Vec<u16>, Box<dyn std::error::Error>
     Ok(ports)
 }
 
-// --- Funzioni Core per Scansione Reale ---
+// --- Core Functions for Real Scanning ---
 
-// Scansione TCP reale - prova a connettersi alla porta
+// Real TCP scanning - attempts to connect to the port
 async fn run_scan_syn(target: &str, port: u16, timeout: Duration) -> Port {
-    // Crea l'indirizzo socket
+    // Create socket address
     let socket_addr = format!("{}:{}", target, port);
     
-    // Prova a fare la connessione TCP
+    // Attempt TCP connection
     let mut port_result = Port {
         port_id: port,
         protocol: "tcp".to_string(),
@@ -153,7 +174,7 @@ async fn run_scan_syn(target: &str, port: u16, timeout: Duration) -> Port {
         Ok(Ok(mut stream)) => {
             port_result.state = PortState::Open;
             
-            // Prova banner grabbing per servizi comuni
+            // Try banner grabbing for common services
             port_result.banner = grab_banner(&mut stream, port, timeout).await;
         }
         Ok(Err(_)) => {
@@ -167,7 +188,7 @@ async fn run_scan_syn(target: &str, port: u16, timeout: Duration) -> Port {
     port_result
 }
 
-// Scansione UDP - invia pacchetti UDP e analizza le risposte
+// UDP scanning - sends UDP packets and analyzes responses
 async fn run_scan_udp(target: &str, port: u16, timeout: Duration) -> Port {
     let socket_addr = format!("{}:{}", target, port);
     
@@ -180,9 +201,9 @@ async fn run_scan_udp(target: &str, port: u16, timeout: Duration) -> Port {
         banner: None,
     };
     
-    // Crea socket UDP locale
+    // Create local UDP socket
     if let Ok(socket) = UdpSocket::bind("0.0.0.0:0").await {
-        // Payload specifici per servizi UDP comuni
+        // Specific payloads for common UDP services
         let payload: &[u8] = match port {
             53 => b"\x12\x34\x01\x00\x00\x01\x00\x00\x00\x00\x00\x00\x07example\x03com\x00\x00\x01\x00\x01", // DNS query
             161 => b"\x30\x26\x02\x01\x00\x04\x06public\xa0\x19\x02\x01\x01\x02\x01\x00\x02\x01\x00\x30\x0e\x30\x0c\x06\x08\x2b\x06\x01\x02\x01\x01\x01\x00\x05\x00", // SNMP
@@ -190,10 +211,10 @@ async fn run_scan_udp(target: &str, port: u16, timeout: Duration) -> Port {
             _ => b"NextMap UDP Probe\n", // Generic probe
         };
         
-        // Invia probe UDP
+        // Send UDP probe
         match tokio::time::timeout(timeout, socket.send_to(payload, &socket_addr)).await {
             Ok(Ok(_)) => {
-                // Aspetta risposta
+                // Wait for response
                 let mut buffer = [0; 1024];
                 match tokio::time::timeout(Duration::from_millis(500), socket.recv_from(&mut buffer)).await {
                     Ok(Ok((n, _))) if n > 0 => {
@@ -204,7 +225,7 @@ async fn run_scan_udp(target: &str, port: u16, timeout: Duration) -> Port {
                         }
                     }
                     _ => {
-                        // Nessuna risposta = probabilmente filtrata o chiusa
+                        // No response = probably filtered or closed
                         port_result.state = PortState::Filtered;
                     }
                 }
@@ -218,13 +239,13 @@ async fn run_scan_udp(target: &str, port: u16, timeout: Duration) -> Port {
     port_result
 }
 
-// OS Fingerprinting avanzato basato su caratteristiche TCP
+// Advanced OS fingerprinting based on TCP characteristics
 async fn detect_os(_target: &str, open_ports: &[Port]) -> Option<OSDetails> {
     if open_ports.is_empty() {
         return None;
     }
     
-    // Analizza pattern di servizi per inferire OS
+    // Analyze service patterns to infer OS
     let services: Vec<&str> = open_ports.iter()
         .filter_map(|p| p.service_name.as_deref())
         .collect();
@@ -239,7 +260,7 @@ async fn detect_os(_target: &str, open_ports: &[Port]) -> Option<OSDetails> {
     })
 }
 
-// Analizza pattern di servizi per inferire OS
+// Analyze service patterns to infer OS
 fn analyze_service_patterns(services: &[&str]) -> (String, String, u8, u8) {
     let has_ssh = services.contains(&"ssh");
     let has_http = services.contains(&"http") || services.contains(&"https");
@@ -249,7 +270,7 @@ fn analyze_service_patterns(services: &[&str]) -> (String, String, u8, u8) {
     let has_apache = services.iter().any(|&s| s.contains("apache"));
     let has_nginx = services.iter().any(|&s| s.contains("nginx"));
     
-    // Logica di detection basata su combinazioni di servizi
+    // Detection logic based on service combinations
     if has_rdp || has_smb {
         ("Microsoft".to_string(), "Windows".to_string(), 128, 85)
     } else if has_ssh && has_apache && has_mysql {
@@ -350,7 +371,7 @@ async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
                     vulns.push(Vulnerability {
                         cve_id: "TELNET-PLAINTEXT".to_string(),
                         severity: "High".to_string(),
-                        description_short: "Telnet trasmette dati in chiaro - usa SSH invece".to_string(),
+                        description_short: "Telnet transmits data in plaintext - use SSH instead".to_string(),
                         service_port: 23,
                     });
                 }
@@ -368,7 +389,7 @@ async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
                     vulns.push(Vulnerability {
                         cve_id: "HTTP-UNENCRYPTED".to_string(),
                         severity: "Medium".to_string(),
-                        description_short: "Traffico HTTP non crittografato - considera HTTPS".to_string(),
+                        description_short: "Unencrypted HTTP traffic - consider HTTPS".to_string(),
                         service_port: port.port_id,
                     });
                 }
@@ -398,7 +419,7 @@ async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
                     vulns.push(Vulnerability {
                         cve_id: "RDP-EXPOSURE".to_string(),
                         severity: "High".to_string(),
-                        description_short: "RDP esposto su Internet - considera VPN".to_string(),
+                        description_short: "RDP exposed to Internet - consider VPN".to_string(),
                         service_port: 3389,
                     });
                 }
@@ -454,7 +475,7 @@ async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
                     vulns.push(Vulnerability {
                         cve_id: "SNMP-DEFAULT-COMMUNITY".to_string(),
                         severity: "Medium".to_string(),
-                        description_short: "SNMP potrebbe usare community string di default".to_string(),
+                        description_short: "SNMP may use default community strings".to_string(),
                         service_port: 161,
                     });
                 }
@@ -918,6 +939,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     let start_time = chrono::Utc::now();
     
+    // Configurazione stealth
+    let stealth_config = if let Some(stealth_mode) = &args.stealth_mode {
+        Some(get_stealth_preset(stealth_mode))
+    } else {
+        None
+    };
+    
+    // CVE Scanning initialization
+    let cve_db = if args.cve_scan {
+        println!("🛡️ Initializing CVE database...");
+        let db = initialize_cve_database(&args.cve_database).await?;
+        
+        if args.update_cve {
+            println!("📡 Updating CVE database from NIST...");
+            match db.update_database().await {
+                Ok(count) => println!("✅ Updated with {} new CVEs", count),
+                Err(e) => println!("⚠️ CVE update failed: {} (using cached data)", e),
+            }
+        }
+        
+        let stats = db.get_statistics()?;
+        println!("📊 CVE Database: {} total vulnerabilities", stats.total_cves);
+        Some(db)
+    } else {
+        None
+    };
+    
     // Configurazione timing
     let (template_timeout, template_concurrency, template_rate_limit) = get_timing_config(&args.timing_template);
     let timeout = Duration::from_millis(if args.timeout == 1000 { template_timeout } else { args.timeout });
@@ -925,6 +973,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rate_limit = if args.rate_limit == 0 { template_rate_limit } else { args.rate_limit };
     
     println!("{}", format!("🚀 Starting NextMap scan...").cyan().bold());
+    
+    if let Some(stealth_mode) = &args.stealth_mode {
+        println!("🥷 Stealth mode: {} enabled", stealth_mode.bright_magenta());
+    }
+    
+    if args.cve_scan {
+        println!("🛡️ CVE scanning: {}", "ENABLED".green());
+    }
+    
     println!("📍 Targets: {} hosts", targets.len().to_string().green());
     println!("🔍 TCP Ports: {} ports", tcp_ports.len().to_string().green());
     if args.udp_scan {
@@ -959,16 +1016,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let port = *port;
             let pb_clone = pb.clone();
             let sem_clone = semaphore.clone();
+            let stealth_cfg = stealth_config.clone();
             
             tasks.push(task::spawn(async move {
                 let _permit = sem_clone.acquire().await.unwrap();
                 
-                // Rate limiting
-                if rate_limit > 0 {
-                    tokio::time::sleep(Duration::from_millis(rate_limit)).await;
-                }
+                let result = if let Some(stealth_config) = &stealth_cfg {
+                    // Modalità stealth
+                    log_stealth_activity(&ip_clone, port, "TCP_STEALTH", stealth_config);
+                    
+                    let port_state = if stealth_config.fragment_packets {
+                        fragmented_scan(&ip_clone, port, stealth_config, timeout).await
+                            .unwrap_or(PortState::Filtered)
+                    } else {
+                        syn_stealth_scan(&ip_clone, port, stealth_config, timeout).await
+                            .unwrap_or(PortState::Filtered)
+                    };
+                    
+                    Port {
+                        port_id: port,
+                        protocol: "tcp".to_string(),
+                        state: port_state,
+                        service_name: None,
+                        service_version: None,
+                        banner: None,
+                    }
+                } else {
+                    // Scansione normale
+                    if rate_limit > 0 {
+                        tokio::time::sleep(Duration::from_millis(rate_limit)).await;
+                    }
+                    run_scan_syn(&ip_clone, port, timeout).await
+                };
                 
-                let result = run_scan_syn(&ip_clone, port, timeout).await;
                 pb_clone.inc(1);
                 
                 if result.state == PortState::Open && service_scan {
@@ -1040,7 +1120,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
         
-        // Aggiungi host solo se ha porte aperte o se è l'unico target
+        // CVE Scanning if enabled
+        if let Some(ref cve_database) = cve_db {
+            if let Err(e) = scan_for_cve(&mut host, cve_database).await {
+                eprintln!("⚠️ CVE scan failed for {}: {}", target_ip, e);
+            }
+        }
+        
+        // Add host only if it has open ports or if it's the only target
         if !host.ports.iter().any(|p| p.state == PortState::Open) {
             host.status = HostStatus::Down;
         }
@@ -1049,13 +1136,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     pb.finish_with_message("✅ Scan completed!");
     
-    // Generazione Report Finale
+    // Final Report Generation
     let duration = chrono::Utc::now().signed_duration_since(start_time);
-    let command = if args.udp_scan {
+    let mut command = if args.udp_scan {
         format!("nextmap --target {} --ports {} --udp-ports {} -U", args.target, args.ports, args.udp_ports)
     } else {
         format!("nextmap --target {} --ports {}", args.target, args.ports)
     };
+    
+    if let Some(stealth_mode) = &args.stealth_mode {
+        command.push_str(&format!(" --stealth-mode {}", stealth_mode));
+    }
+    
+    if args.cve_scan {
+        command.push_str(" --cve-scan");
+    }
     
     let scan_results = ScanResult {
         timestamp: start_time.to_rfc3339(),
@@ -1064,7 +1159,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hosts: all_hosts,
     };
 
-    // Serializzazione (Human, JSON, YAML, XML, CSV, MD)
+    // Serialization (Human, JSON, YAML, XML, CSV, MD)
     let output = match args.output_format.as_str() {
         "json" => serde_json::to_string_pretty(&scan_results)?,
         "yaml" => serde_yaml::to_string(&scan_results)?,
@@ -1074,7 +1169,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "human" | _ => generate_human_output(&scan_results),
     };
     
-    // Output su file o stdout
+    // Output to file or stdout
     if let Some(filename) = args.output_file {
         std::fs::write(&filename, &output)?;
         println!("💾 Results saved to: {}", filename.green());

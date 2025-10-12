@@ -1,16 +1,16 @@
 # nextmap/Cargo.toml
 [package]
 name = "nextmap"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["NextMap Contributors"]
-description = "Next generation network scanner built in Rust"
+description = "Next generation network scanner with stealth capabilities and CVE detection"
 license = "MIT"
-repository = "https://github.com/your-username/nextmap"
-homepage = "https://github.com/your-username/nextmap"
-documentation = "https://github.com/your-username/nextmap"
+repository = "https://github.com/pozivo/nextmap"
+homepage = "https://github.com/pozivo/nextmap"
+documentation = "https://github.com/pozivo/nextmap"
 readme = "README.md"
-keywords = ["network", "scanner", "security", "pentesting", "reconnaissance"]
+keywords = ["network", "scanner", "security", "pentesting", "stealth", "cve"]
 categories = ["command-line-utilities", "network-programming"]
 exclude = [
     ".github/*",
@@ -46,3 +46,13 @@ indicatif = "0.17"
 colored = "2.0"
 # Per parsing delle versioni dai banner
 regex = "1.10"
+# Raw packet manipulation per stealth scanning
+socket2 = "0.5"
+# Random number generation per evasion
+rand = "0.8"
+# Database SQLite per CVE
+rusqlite = { version = "0.29", features = ["bundled"] }
+# HTTP client per CVE updates
+reqwest = { version = "0.11", features = ["json"] }
+# URL parsing
+url = "2.4"
