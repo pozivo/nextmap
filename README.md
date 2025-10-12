@@ -105,20 +105,23 @@ cargo build --release
 
 ## 🚀 Quick Start
 
-### Basic Scanning
+### Basic Scanning (nmap-style)
 
 ```bash
-# Scan all ports on a single host (default: 1-65535)
+# Default scan - top 1000 most common ports (like nmap)
 nextmap --target 192.168.1.1
 
-# Scan specific ports with service detection
+# Scan all ports (comprehensive)
+nextmap --target 192.168.1.1 --ports "all"
+
+# Quick scan - top 100 ports only
+nextmap --target 192.168.1.1 --ports "top100"
+
+# Custom ports with service detection
 nextmap --target example.com --ports "80,443,22" -s
 
-# Scan common ports with OS detection
-nextmap --target 192.168.1.1 --ports "1-1000" -s -O
-
-# Quick scan of top 100 ports only
-nextmap --target 192.168.1.1 --ports "21,22,23,25,53,80,110,135,139,143,443,993,995,1723,3306,3389,5432,5900,8080,8443"
+# Scan CIDR range with OS detection  
+nextmap --target 192.168.1.0/24 --ports "top1000" -s -O
 ```
 
 ### Stealth Scanning
@@ -239,30 +242,33 @@ Options:
 ## 🎯 Examples
 
 ### Network Discovery
-```bash
-# Discover live hosts in subnet
-nextmap --target 192.168.1.0/24 --ports "80,443,22" -s -O
 
-# Full network audit
-nextmap --target 10.0.0.0/16 --timing-template polite --output-format md -f audit.md
+```bash
+# Discover live hosts in subnet (nmap-style default)
+nextmap --target 192.168.1.0/24 -s -O
+
+# Fast network sweep - top 100 ports
+nextmap --target 10.0.0.0/16 --ports "top100" --timing-template aggressive
 ```
 
 ### Security Assessment
-```bash
-# Vulnerability scan
-nextmap --target production-server.com --ports "21-25,53,80,110,143,443,993,995" -s
 
-# Comprehensive scan with all protocols
-nextmap --target target.com --udp-scan --timing-template normal -s -O -f security-report.json
+```bash
+# Vulnerability scan with CVE detection
+nextmap --target production-server.com --cve-scan -s --output-format json
+
+# Comprehensive security audit
+nextmap --target target.com --ports "all" --udp-scan --cve-scan -s -O -f security-report.json
 ```
 
 ### Penetration Testing
-```bash
-# Stealth reconnaissance
-nextmap --target sensitive-target.com --timing-template paranoid --rate-limit 5000
 
-# Service enumeration
-nextmap --target 192.168.1.100 --ports "1-65535" --timing-template aggressive -s
+```bash
+# Stealth reconnaissance with ninja mode
+nextmap --target sensitive-target.com --stealth-mode ninja --ports "top1000" --timing-template paranoid
+
+# Full port enumeration (careful - very slow!)
+nextmap --target 192.168.1.100 --ports "all" --timing-template aggressive -s
 ```
 
 ## 🛡️ Ethical Usage
