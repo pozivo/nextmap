@@ -1,0 +1,29 @@
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="800" height="400" fill="#0f172a"/>
+  
+  <!-- Main Title -->
+  <text x="400" y="120" font-family="Arial, sans-serif" font-size="56" font-weight="bold" 
+        text-anchor="middle" fill="#06b6d4">NextMap</text>
+  
+  <!-- Version -->
+  <text x="400" y="160" font-family="Arial, sans-serif" font-size="18" 
+        text-anchor="middle" fill="#8b5cf6">v0.2.0</text>
+  
+  <!-- Subtitle -->
+  <text x="400" y="200" font-family="Arial, sans-serif" font-size="24" 
+        text-anchor="middle" fill="#e2e8f0">Advanced Network Scanner</text>
+  
+  <!-- Features -->
+  <text x="200" y="260" font-family="Arial, sans-serif" font-size="16" fill="#64748b">🥷 Stealth Scanning</text>
+  <text x="200" y="280" font-family="Arial, sans-serif" font-size="16" fill="#64748b">🛡️ CVE Detection</text>
+  <text x="200" y="300" font-family="Arial, sans-serif" font-size="16" fill="#64748b">⚡ Full Port Scanning</text>
+  
+  <text x="600" y="260" font-family="Arial, sans-serif" font-size="16" fill="#64748b">🎯 Multi-Format Output</text>
+  <text x="600" y="280" font-family="Arial, sans-serif" font-size="16" fill="#64748b">🔍 OS Fingerprinting</text>
+  <text x="600" y="300" font-family="Arial, sans-serif" font-size="16" fill="#64748b">🚀 High Performance</text>
+  
+  <!-- Command Example -->
+  <rect x="50" y="330" width="700" height="40" fill="#1e293b" stroke="#334155" stroke-width="1"/>
+  <text x="60" y="355" font-family="Consolas, monospace" font-size="14" fill="#06b6d4">$ nextmap 192.168.1.0/24 --stealth ninja --cve --output json</text>
+</svg>
