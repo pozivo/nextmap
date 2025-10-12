@@ -6,7 +6,9 @@
 
 NextMap is a modern, fast, and feature-rich network scanner built in Rust with advanced stealth capabilities and automatic CVE detection. Perfect for penetration testing, security assessments, and network reconnaissance.
 
-![NextMap Demo](assets/demo.gif)
+![NextMap Banner](assets/logo-banner.svg)
+
+![NextMap in Action](assets/demo-screenshot.svg)
 
 ## ✨ Features
 
