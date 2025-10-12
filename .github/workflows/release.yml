@@ -163,4 +163,5 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          */nextmap-*
+          **/*.zip
+          **/*.tar.gz
