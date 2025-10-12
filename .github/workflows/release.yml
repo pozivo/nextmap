@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -53,7 +56,7 @@ jobs:
         sudo apt-get install -y musl-tools
 
     - name: Cache cargo dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/bin/
@@ -91,7 +94,7 @@ jobs:
         7z a ..\${{ matrix.asset_name }} *
 
     - name: Upload Release Asset
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.name }}
         path: ${{ matrix.asset_name }}
@@ -106,16 +109,16 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
 
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ github.ref_name }}
-        release_name: NextMap ${{ github.ref_name }}
+        name: NextMap ${{ github.ref_name }}
         body: |
           # NextMap ${{ github.ref_name }} 🚀
           
@@ -159,12 +162,5 @@ jobs:
           **Full Changelog**: https://github.com/${{ github.repository }}/compare/v0.1.0...${{ github.ref_name }}
         draft: false
         prerelease: false
-
-    - name: Upload Release Assets
-      run: |
-        for asset in */nextmap-*; do
-          echo "Uploading $asset"
-          gh release upload ${{ github.ref_name }} "$asset" --clobber
-        done
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        files: |
+          */nextmap-*
