@@ -39,6 +39,8 @@ NextMap is a modern, fast, and feature-rich network scanner built in Rust with a
 - **Timing Templates** - From stealth to aggressive scanning modes
 - **Beautiful Output** - Colorized terminal output with progress bars
 
+> ⚠️ **Note**: NextMap v0.2.0+ scans **all ports (1-65535)** by default for comprehensive coverage. Use `--ports` to specify custom ranges for faster scans.
+
 ## 📥 Installation
 
 ### Pre-built Binaries
@@ -97,14 +99,17 @@ cargo build --release
 ### Basic Scanning
 
 ```bash
-# Scan a single host
+# Scan all ports on a single host (default: 1-65535)
 nextmap --target 192.168.1.1
 
-# Scan with service detection
+# Scan specific ports with service detection
 nextmap --target example.com --ports "80,443,22" -s
 
-# Scan with OS detection
-nextmap --target 192.168.1.1 -s -O
+# Scan common ports with OS detection
+nextmap --target 192.168.1.1 --ports "1-1000" -s -O
+
+# Quick scan of top 100 ports only
+nextmap --target 192.168.1.1 --ports "21,22,23,25,53,80,110,135,139,143,443,993,995,1723,3306,3389,5432,5900,8080,8443"
 ```
 
 ### Stealth Scanning

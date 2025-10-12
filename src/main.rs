@@ -30,7 +30,7 @@ struct Args {
     target: String,
 
     /// Ports to scan (e.g., "80,443,22-25")
-    #[arg(short, long, default_value = "21,22,23,25,53,80,110,143,443,993,995,3389,3306,5432")]
+    #[arg(short, long, default_value = "1-65535")]
     ports: String,
     
     /// Enable service detection and vulnerability analysis
@@ -61,8 +61,8 @@ struct Args {
     #[arg(short = 'U', long, default_value_t = false)]
     udp_scan: bool,
 
-    /// UDP ports to scan (default: DNS, DHCP, SNMP)
-    #[arg(long, default_value = "53,67,68,161,162")]
+    /// UDP ports to scan (default: common UDP ports)
+    #[arg(long, default_value = "53,67,68,69,123,135,137,138,139,161,162,445,500,514,1434,1900,4500,5353")]
     udp_ports: String,
 
     /// Rate limiting delay in milliseconds between scans
@@ -987,6 +987,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.udp_scan {
         println!("🔍 UDP Ports: {} ports", udp_ports.len().to_string().yellow());
     }
+    
+    // Avviso per scan di molte porte
+    if tcp_ports.len() > 1000 {
+        println!("⚠️  {}: Scanning {} TCP ports. This may take several minutes.", 
+                 "WARNING".yellow().bold(), 
+                 tcp_ports.len().to_string().red());
+        println!("💡 {}: Use --ports \"1-1000\" for faster results or add --timing-template aggressive", 
+                 "TIP".cyan().bold());
+    }
+    
     println!("⏱️  Timeout: {}ms | Concurrency: {} | Rate limit: {}ms", 
              timeout.as_millis().to_string().yellow(),
              concurrency.to_string().cyan(),
