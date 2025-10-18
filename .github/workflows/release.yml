@@ -114,6 +114,21 @@ jobs:
     - name: Download all artifacts
       uses: actions/download-artifact@v4
 
+    - name: List downloaded artifacts
+      run: |
+        echo "Downloaded artifacts:"
+        ls -R
+        
+    - name: Prepare release files
+      run: |
+        mkdir -p release-files
+        mv nextmap-linux-x64/nextmap-linux-x64.tar.gz release-files/ || echo "Linux artifact not found"
+        mv nextmap-windows-x64/nextmap-windows-x64.zip release-files/ || echo "Windows artifact not found"
+        mv nextmap-macos-x64/nextmap-macos-x64.tar.gz release-files/ || echo "macOS x64 artifact not found"
+        mv nextmap-macos-arm64/nextmap-macos-arm64.tar.gz release-files/ || echo "macOS ARM64 artifact not found"
+        echo "Release files prepared:"
+        ls -lh release-files/
+
     - name: Create Release
       id: create_release
       uses: softprops/action-gh-release@v2
@@ -165,5 +180,7 @@ jobs:
         draft: false
         prerelease: false
         files: |
-          **/*.zip
-          **/*.tar.gz
+          release-files/nextmap-linux-x64.tar.gz
+          release-files/nextmap-windows-x64.zip
+          release-files/nextmap-macos-x64.tar.gz
+          release-files/nextmap-macos-arm64.tar.gz
