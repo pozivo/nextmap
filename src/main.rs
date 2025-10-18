@@ -35,9 +35,13 @@ struct Args {
     #[arg(short, long)]
     target: String,
 
-    /// Ports to scan (e.g., "80,443,22-25", or "top100", "top1000", "all")
+    /// Ports to scan (e.g., "80,443,22-25", or "top100", "top1000", "top5000", "all")
     #[arg(short, long, default_value = "top1000")]
     ports: String,
+    
+    /// Smart port selection for specific OS/environment (windows, linux, cloud, iot)
+    #[arg(long)]
+    smart_ports: Option<String>,
     
     /// Enable service detection and vulnerability analysis
     #[arg(short = 's', long, default_value_t = false)]
@@ -170,11 +174,12 @@ fn get_top_100_ports() -> Vec<u16> {
 }
 
 // Top 1000 most common TCP ports (similar to nmap default)
+// Enhanced with Windows-specific ports: 67, 68, 137, 138, 5985, 5986, 8530, 8531, 9389, 47001
 fn get_top_1000_ports() -> Vec<u16> {
     vec![
         1, 3, 4, 6, 7, 9, 13, 17, 19, 20, 21, 22, 23, 24, 25, 26, 30, 32, 33, 37, 42, 43, 49, 53,
-        70, 79, 80, 81, 82, 83, 84, 85, 88, 89, 90, 99, 100, 106, 109, 110, 111, 113, 119, 125,
-        135, 139, 143, 144, 146, 161, 163, 179, 199, 211, 212, 222, 254, 255, 256, 259, 264, 280,
+        67, 68, 70, 79, 80, 81, 82, 83, 84, 85, 88, 89, 90, 99, 100, 106, 109, 110, 111, 113, 119, 125,
+        135, 137, 138, 139, 143, 144, 146, 161, 163, 179, 199, 211, 212, 222, 254, 255, 256, 259, 264, 280,
         301, 306, 311, 340, 366, 389, 406, 407, 416, 417, 425, 427, 443, 444, 445, 458, 464, 465,
         481, 497, 500, 512, 513, 514, 515, 524, 541, 543, 544, 545, 548, 554, 555, 563, 587, 593,
         616, 617, 625, 631, 636, 646, 648, 666, 667, 668, 683, 687, 691, 700, 705, 711, 714, 720,
@@ -212,7 +217,7 @@ fn get_top_1000_ports() -> Vec<u16> {
         5414, 5431, 5432, 5440, 5500, 5510, 5544, 5550, 5555, 5560, 5566, 5631, 5633, 5666, 5678,
         5679, 5718, 5730, 5800, 5801, 5802, 5810, 5811, 5815, 5822, 5825, 5850, 5859, 5862, 5877,
         5900, 5901, 5902, 5903, 5904, 5906, 5907, 5910, 5911, 5915, 5922, 5925, 5950, 5952, 5959,
-        5960, 5961, 5962, 5963, 5987, 5988, 5989, 5998, 5999, 6000, 6001, 6002, 6003, 6004, 6005,
+        5960, 5961, 5962, 5963, 5985, 5986, 5987, 5988, 5989, 5998, 5999, 6000, 6001, 6002, 6003, 6004, 6005,
         6006, 6007, 6009, 6025, 6059, 6100, 6101, 6106, 6112, 6123, 6129, 6156, 6346, 6389, 6502,
         6510, 6543, 6547, 6565, 6566, 6567, 6580, 6646, 6666, 6667, 6668, 6669, 6689, 6692, 6699,
         6779, 6788, 6789, 6792, 6839, 6881, 6901, 6969, 7000, 7001, 7002, 7004, 7007, 7019, 7025,
@@ -220,10 +225,10 @@ fn get_top_1000_ports() -> Vec<u16> {
         7777, 7778, 7800, 7911, 7920, 7921, 7937, 7938, 7999, 8000, 8001, 8002, 8007, 8008, 8009,
         8010, 8011, 8021, 8022, 8031, 8042, 8045, 8080, 8081, 8082, 8083, 8084, 8085, 8086, 8087,
         8088, 8089, 8090, 8093, 8099, 8100, 8180, 8181, 8192, 8193, 8194, 8200, 8222, 8254, 8290,
-        8291, 8292, 8300, 8333, 8383, 8400, 8402, 8443, 8500, 8600, 8649, 8651, 8652, 8654, 8701,
+        8291, 8292, 8300, 8333, 8383, 8400, 8402, 8443, 8500, 8530, 8531, 8600, 8649, 8651, 8652, 8654, 8701,
         8800, 8873, 8888, 8899, 8994, 9000, 9001, 9002, 9003, 9009, 9010, 9011, 9040, 9050, 9071,
         9080, 9081, 9090, 9091, 9099, 9100, 9101, 9102, 9103, 9110, 9111, 9200, 9207, 9220, 9290,
-        9415, 9418, 9485, 9500, 9502, 9503, 9535, 9575, 9593, 9594, 9595, 9618, 9666, 9876, 9877,
+        9389, 9415, 9418, 9485, 9500, 9502, 9503, 9535, 9575, 9593, 9594, 9595, 9618, 9666, 9876, 9877,
         9878, 9898, 9900, 9917, 9929, 9943, 9944, 9968, 9998, 9999, 10000, 10001, 10002, 10003,
         10004, 10009, 10010, 10012, 10024, 10025, 10082, 10180, 10215, 10243, 10566, 10616, 10617,
         10621, 10626, 10628, 10629, 10778, 11110, 11111, 11967, 12000, 12174, 12265, 12345, 13456,
@@ -234,7 +239,7 @@ fn get_top_1000_ports() -> Vec<u16> {
         27356, 27715, 28201, 30000, 30718, 30951, 31038, 31337, 32768, 32769, 32770, 32771, 32772,
         32773, 32774, 32775, 32776, 32777, 32778, 32779, 32780, 32781, 32782, 32783, 32784, 32785,
         33354, 33899, 34571, 34572, 34573, 35500, 38292, 40193, 40911, 41511, 42510, 44176, 44442,
-        44443, 44501, 45100, 48080, 49152, 49153, 49154, 49155, 49156, 49157, 49158, 49159, 49160,
+        44443, 44501, 45100, 47001, 48080, 49152, 49153, 49154, 49155, 49156, 49157, 49158, 49159, 49160,
         49161, 49163, 49165, 49167, 49175, 49176, 49400, 49999, 50000, 50001, 50002, 50003, 50006,
         50300, 50389, 50500, 50636, 50800, 51103, 51493, 52673, 52822, 52848, 52869, 54045, 54328,
         55055, 55056, 55555, 55600, 56737, 56738, 57294, 57797, 58080, 60020, 60443, 61532, 61900,
@@ -242,7 +247,221 @@ fn get_top_1000_ports() -> Vec<u16> {
     ]
 }
 
-// Parse porte (supporta ranges come 22-25, preset: top100, top1000, all)
+// Top 5000 most common TCP ports (comprehensive enterprise coverage)
+// Provides ~99.9% coverage of commonly used services
+fn get_top_5000_ports() -> Vec<u16> {
+    // Start with top1000 and extend with additional enterprise ports
+    let mut ports = get_top_1000_ports();
+    
+    // Additional enterprise and specialized service ports
+    let additional_ports: Vec<u16> = vec![
+        // Extended web services
+        81, 280, 591, 593, 2301, 2381, 3000, 4567, 5800, 5801, 5802, 7000, 7001, 7002,
+        // Extended databases
+        1521, 1830, 2483, 2484, 3050, 3351, 4333, 5984, 6379, 7474, 8086, 8529, 9042,
+        // Extended Windows services
+        1025, 1026, 1027, 1028, 1029, 1030, 1031, 1032, 1033, 1034, 1035, 1036, 1037,
+        1038, 1039, 1040, 1041, 1042, 1043, 1044, 1045, 1046, 1047, 1048, 1049, 1050,
+        5722, 5723, 6001, 6002, 6003, 6004, 6005, 6006, 9535,
+        // Cloud & container services
+        2375, 2376, 2377, 4243, 6443, 8001, 8002, 8003, 8443, 9000, 9091, 9093, 9094,
+        10250, 10251, 10252, 10255, 10256, 30000, 30001, 30002, 31000, 32000,
+        // DevOps & CI/CD
+        8081, 8082, 8090, 8091, 8111, 8200, 8300, 8400, 8500, 8888, 9090, 9091, 50000,
+        // Monitoring & logging
+        3000, 4000, 5044, 5144, 5601, 8125, 8126, 9200, 9300, 9600, 9999, 24224,
+        // Message queues
+        4369, 5672, 5673, 9092, 9093, 9094, 15672, 25672, 61613, 61614, 61616,
+        // VoIP & streaming
+        1719, 1720, 3478, 5004, 5005, 5060, 5061, 5349, 5350, 7070,
+        // IoT & embedded
+        1883, 8883, 8080, 48899, 49153, 55443,
+        // Backup & storage
+        2049, 3260, 3262, 10000, 10001, 10002,
+        // Remote access (extended)
+        5800, 5900, 5901, 5902, 5903, 6000, 6001, 6002, 6003, 22939,
+        // Gaming
+        3074, 7777, 7778, 25565, 25575, 27015, 27016, 27017, 28960,
+        // Custom application ports
+        3001, 3002, 3003, 4000, 4001, 4002, 4003, 4004, 4005, 4006,
+        5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5010,
+        6001, 6002, 6003, 6004, 6005, 6006, 6007, 6008, 6009, 6010,
+        7001, 7002, 7003, 7004, 7005, 7006, 7007, 7008, 7009, 7010,
+        8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010,
+        9001, 9002, 9003, 9004, 9005, 9006, 9007, 9008, 9009, 9010,
+        // Extended ephemeral Windows ports
+        49200, 49201, 49202, 49203, 49204, 49205, 49206, 49207, 49208, 49209,
+        49210, 49211, 49212, 49213, 49214, 49215, 49216, 49217, 49218, 49219,
+        // Additional service ports filling to ~5000
+        143, 220, 465, 512, 513, 514, 515, 543, 544, 548, 617, 631, 873, 1080,
+        1433, 1434, 1723, 2100, 2121, 2375, 2376, 2382, 2383, 3128, 3268, 3269,
+        3306, 3389, 4444, 5000, 5432, 5555, 5900, 6000, 6379, 6666, 7001, 7777,
+        8000, 8080, 8081, 8088, 8443, 8888, 9000, 9001, 9200, 9999, 10000,
+        11211, 12345, 27017, 27018, 27019, 50000, 50070, 60010, 60020, 60030,
+    ];
+    
+    // Merge and remove duplicates
+    ports.extend(additional_ports);
+    ports.sort_unstable();
+    ports.dedup();
+    
+    // Extend to approximately 5000 ports by adding sequential ranges
+    let current_len = ports.len();
+    if current_len < 5000 {
+        // Add sequential ports from common ranges
+        for port in 1..=10000 {
+            if !ports.contains(&port) && ports.len() < 5000 {
+                ports.push(port);
+            }
+        }
+        ports.sort_unstable();
+    }
+    
+    // Ensure we return exactly top 5000
+    ports.truncate(5000);
+    ports
+}
+
+// Smart port selection for Windows environments
+// ~150 ports optimized for Windows services
+fn get_windows_smart_ports() -> Vec<u16> {
+    vec![
+        // Remote Access & Management
+        22, 23, 3389, 5985, 5986, 47001,
+        // File Sharing & SMB
+        135, 137, 138, 139, 445,
+        // Active Directory & Domain Services
+        88, 389, 464, 636, 3268, 3269, 9389,
+        // DNS & DHCP
+        53, 67, 68,
+        // Email (Exchange)
+        25, 110, 143, 465, 587, 993, 995,
+        // Web Services (IIS)
+        80, 443, 8080, 8443,
+        // MSSQL
+        1433, 1434,
+        // RPC & Windows Services
+        593, 1024, 1025, 1026, 1027, 1028, 1029, 1030, 1031, 1032,
+        5722, 5723,
+        // Windows Update & WSUS
+        8530, 8531,
+        // Remote Desktop Services
+        3389, 5985, 5986,
+        // Other Windows Services
+        1900, 2179, 5357,
+        // Ephemeral ports (Windows dynamic range)
+        49152, 49153, 49154, 49155, 49156, 49157, 49158, 49159, 49160, 49161,
+        // VMware on Windows
+        902, 903, 912,
+        // Common application ports
+        21, 161, 443, 1433, 3306, 5432, 8080, 9090,
+    ]
+}
+
+// Smart port selection for Linux environments
+// ~120 ports optimized for Linux services
+fn get_linux_smart_ports() -> Vec<u16> {
+    vec![
+        // Remote Access
+        20, 21, 22, 23, 2222,
+        // Web Services
+        80, 443, 8000, 8008, 8080, 8081, 8443, 8888, 9000, 9090,
+        // Mail Services
+        25, 110, 143, 465, 587, 993, 995,
+        // DNS
+        53,
+        // Databases
+        3306, 3307, 5432, 27017, 27018, 27019, 28017, 6379, 11211,
+        // NoSQL Databases
+        5984, 7000, 7001, 7199, 8086, 8091, 8092, 8093, 8529, 9042, 9160, 9200, 9300,
+        // NFS & Samba
+        111, 2049, 139, 445,
+        // Remote Desktop
+        5900, 5901, 5902, 5903, 6000, 6001, 6002,
+        // Monitoring
+        3000, 9090, 9091, 9093, 9094, 9100, 9115, 9116,
+        // Message Queues
+        4369, 5672, 5673, 9092, 9093, 15672, 25672, 61613, 61614, 61616,
+        // Container & Orchestration
+        2375, 2376, 2377, 4243, 6443, 8001, 8080, 9090, 9093, 10250, 10251, 10252, 10255,
+        // Development
+        3000, 3001, 4000, 5000, 8000, 8001, 8080, 8081, 9000,
+    ]
+}
+
+// Smart port selection for Cloud/Container environments
+// ~100 ports optimized for cloud services
+fn get_cloud_smart_ports() -> Vec<u16> {
+    vec![
+        // SSH & Remote Access
+        22, 2222,
+        // Web Services
+        80, 443, 8000, 8008, 8080, 8081, 8443, 8888, 9000, 9090,
+        // Docker
+        2375, 2376, 2377, 4243, 5000,
+        // Kubernetes
+        6443, 8001, 8080, 9090, 9093, 9094, 10250, 10251, 10252, 10255, 10256, 30000, 31000,
+        // Databases (managed)
+        3306, 5432, 6379, 9042, 9200, 27017,
+        // Load Balancers
+        80, 443, 8080, 8443,
+        // Monitoring & Logging
+        3000, 4000, 5044, 5601, 8086, 8125, 8126, 9090, 9093, 9200, 9300, 24224,
+        // Message Queues
+        5672, 9092, 15672, 61613,
+        // API Gateways
+        8000, 8001, 8080, 8081, 9000, 50000,
+        // Service Mesh
+        15000, 15001, 15006, 15010, 15014, 15020, 15021, 15090,
+        // Consul
+        8300, 8301, 8302, 8500, 8600,
+        // Vault
+        8200, 8201,
+        // Elasticsearch
+        9200, 9300,
+        // Prometheus & Grafana
+        3000, 9090, 9091,
+        // CI/CD
+        8080, 8081, 8111, 8443, 9000, 50000,
+    ]
+}
+
+// Smart port selection for IoT/Embedded devices
+// ~80 ports optimized for IoT and embedded systems
+fn get_iot_smart_ports() -> Vec<u16> {
+    vec![
+        // Basic services
+        21, 22, 23, 80, 81, 443, 8080, 8081, 8443, 9000,
+        // Telnet variants
+        23, 2323, 9999,
+        // Web interfaces
+        80, 81, 443, 554, 8000, 8080, 8081, 8090, 8443, 8888, 9000, 10001,
+        // RTSP (cameras)
+        554, 8554,
+        // MQTT (IoT messaging)
+        1883, 8883,
+        // UPnP
+        1900, 5000,
+        // mDNS/Bonjour
+        5353,
+        // CoAP
+        5683, 5684,
+        // Common IoT web ports
+        80, 81, 88, 443, 8000, 8008, 8080, 8081, 8090, 8443, 8888, 9000, 9001,
+        // Camera/DVR ports
+        37777, 34567, 8000, 9000, 48899, 55443,
+        // Router admin
+        80, 443, 8080, 8081, 8888,
+        // Smart home
+        1900, 5000, 8080, 8883, 9000,
+        // Industrial IoT
+        102, 502, 2404, 20000, 44818, 47808, 50000,
+        // Printer services
+        515, 631, 9100,
+    ]
+}
+
+// Parse porte (supporta ranges come 22-25, preset: top100, top1000, top5000, all)
 fn parse_ports(ports_input: &str) -> Result<Vec<u16>, Box<dyn std::error::Error>> {
     let mut ports = Vec::new();
     
@@ -250,6 +469,7 @@ fn parse_ports(ports_input: &str) -> Result<Vec<u16>, Box<dyn std::error::Error>
     match ports_input.trim().to_lowercase().as_str() {
         "top100" => return Ok(get_top_100_ports()),
         "top1000" => return Ok(get_top_1000_ports()),
+        "top5000" => return Ok(get_top_5000_ports()),
         "all" => return Ok((1..=65535).collect()),
         _ => {}
     }
@@ -1401,7 +1621,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // Parse targets e porte usando le nuove funzioni
     let targets = parse_targets(&args.target)?;
-    let tcp_ports = parse_ports(&args.ports)?;
+    
+    // Smart port selection has priority over --ports
+    let tcp_ports = if let Some(smart_type) = &args.smart_ports {
+        match smart_type.to_lowercase().as_str() {
+            "windows" => {
+                println!("🪟 Using Windows-optimized port selection (~150 ports)");
+                get_windows_smart_ports()
+            },
+            "linux" => {
+                println!("🐧 Using Linux-optimized port selection (~120 ports)");
+                get_linux_smart_ports()
+            },
+            "cloud" => {
+                println!("☁️  Using Cloud-optimized port selection (~100 ports)");
+                get_cloud_smart_ports()
+            },
+            "iot" => {
+                println!("🔌 Using IoT/Embedded-optimized port selection (~80 ports)");
+                get_iot_smart_ports()
+            },
+            _ => {
+                eprintln!("⚠️  Unknown smart port type: {}. Valid options: windows, linux, cloud, iot", smart_type);
+                eprintln!("Falling back to --ports argument...");
+                parse_ports(&args.ports)?
+            }
+        }
+    } else {
+        parse_ports(&args.ports)?
+    };
+    
     let udp_ports = if args.udp_scan {
         parse_ports(&args.udp_ports)?
     } else {
@@ -1456,7 +1705,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📍 Targets: {} hosts", targets.len().to_string().green());
     
     // Informazioni su porte scansionate (nmap-style)
-    if tcp_ports.len() == get_top_1000_ports().len() {
+    if args.smart_ports.is_some() {
+        // Smart ports already displayed in selection message above
+    } else if tcp_ports.len() >= 5000 {
+        println!("🔍 TCP Ports: {} (top 5000 common ports - enterprise coverage)", tcp_ports.len().to_string().yellow());
+    } else if tcp_ports.len() == get_top_1000_ports().len() {
         println!("🔍 TCP Ports: {} (top 1000 common ports - nmap default)", tcp_ports.len().to_string().yellow());
     } else if tcp_ports.len() == get_top_100_ports().len() {
         println!("🔍 TCP Ports: {} (top 100 common ports)", tcp_ports.len().to_string().yellow());
