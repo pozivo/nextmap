@@ -1,0 +1,100 @@
+{
+  "timestamp": "2025-10-18T06:13:03.422546600+00:00",
+  "command": "nextmap --target scanme.nmap.org --ports 21,22,80,443,3306,5432,6379,8080,9200",
+  "duration_ms": 2840,
+  "hosts": [
+    {
+      "ip_address": "scanme.nmap.org",
+      "hostname": null,
+      "status": "Up",
+      "ports": [
+        {
+          "port_id": 21,
+          "protocol": "tcp",
+          "state": "Closed",
+          "service_name": null,
+          "service_version": null,
+          "banner": null
+        },
+        {
+          "port_id": 22,
+          "protocol": "tcp",
+          "state": "Open",
+          "service_name": "ssh",
+          "service_version": null,
+          "banner": "SSH-2.0-OpenSSH_6.6.1p1 Ubuntu-2ubuntu2.13"
+        },
+        {
+          "port_id": 80,
+          "protocol": "tcp",
+          "state": "Open",
+          "service_name": "http",
+          "service_version": "HTTP Server",
+          "banner": "HTTP/1.1 200 OK"
+        },
+        {
+          "port_id": 443,
+          "protocol": "tcp",
+          "state": "Closed",
+          "service_name": null,
+          "service_version": null,
+          "banner": null
+        },
+        {
+          "port_id": 3306,
+          "protocol": "tcp",
+          "state": "Closed",
+          "service_name": null,
+          "service_version": null,
+          "banner": null
+        },
+        {
+          "port_id": 5432,
+          "protocol": "tcp",
+          "state": "Closed",
+          "service_name": null,
+          "service_version": null,
+          "banner": null
+        },
+        {
+          "port_id": 6379,
+          "protocol": "tcp",
+          "state": "Closed",
+          "service_name": null,
+          "service_version": null,
+          "banner": null
+        },
+        {
+          "port_id": 8080,
+          "protocol": "tcp",
+          "state": "Closed",
+          "service_name": null,
+          "service_version": null,
+          "banner": null
+        },
+        {
+          "port_id": 9200,
+          "protocol": "tcp",
+          "state": "Closed",
+          "service_name": null,
+          "service_version": null,
+          "banner": null
+        }
+      ],
+      "os_details": {
+        "os_vendor": "Linux",
+        "os_family": "Linux",
+        "accuracy": 60,
+        "ttl_hop_distance": 64
+      },
+      "vulnerabilities": [
+        {
+          "cve_id": "HTTP-UNENCRYPTED",
+          "severity": "Medium",
+          "description_short": "Unencrypted HTTP traffic - consider HTTPS",
+          "service_port": 80
+        }
+      ]
+    }
+  ]
+}

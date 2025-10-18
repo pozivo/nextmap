@@ -15,10 +15,16 @@ use regex;
 mod models;
 mod stealth;
 mod cve;
+mod fingerprint;
+#[cfg(feature = "network-discovery")]
+mod discovery;
 
 use models::*;
 use stealth::*;
-use cve::*; 
+use cve::*;
+use fingerprint::*;
+#[cfg(feature = "network-discovery")]
+use discovery::*; 
 
 // --- CLI Configuration with clap ---
 
@@ -88,6 +94,26 @@ struct Args {
     /// Update CVE database before scanning
     #[arg(long, default_value_t = false)]
     update_cve: bool,
+
+    #[cfg(feature = "network-discovery")]
+    /// Enable network discovery mode (ARP scan, ping sweep, neighbor discovery)
+    #[arg(long, default_value_t = false)]
+    network_discovery: bool,
+
+    #[cfg(feature = "network-discovery")]
+    /// Network discovery timeout in milliseconds
+    #[arg(long, default_value_t = 1000)]
+    discovery_timeout: u64,
+
+    #[cfg(feature = "network-discovery")]
+    /// Include loopback interfaces in network discovery
+    #[arg(long, default_value_t = false)]
+    include_loopback: bool,
+
+    #[cfg(feature = "network-discovery")]
+    /// Aggressive network discovery mode (faster but more noticeable)
+    #[arg(long, default_value_t = false)]
+    aggressive_discovery: bool,
 }
 
 // --- Support Functions ---
@@ -382,6 +408,26 @@ fn analyze_service_patterns(services: &[&str]) -> (String, String, u8, u8) {
     }
 }
 
+// Sanitize banner string - remove non-printable characters
+fn sanitize_banner(data: &[u8]) -> String {
+    data.iter()
+        .filter_map(|&byte| {
+            match byte {
+                // Printable ASCII (letters, numbers, common punctuation)
+                32..=126 => Some(byte as char),
+                // Tab, preserve as space
+                9 => Some(' '),
+                // LF and CR, keep for line breaks
+                10 | 13 => Some(byte as char),
+                // Everything else is discarded
+                _ => None,
+            }
+        })
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
 // Banner grabbing per identificazione servizi
 async fn grab_banner(stream: &mut TcpStream, port: u16, timeout: Duration) -> Option<String> {
     let mut buffer = [0; 1024];
@@ -407,10 +453,17 @@ async fn grab_banner(stream: &mut TcpStream, port: u16, timeout: Duration) -> Op
     // Leggi la risposta
     match tokio::time::timeout(timeout, stream.read(&mut buffer)).await {
         Ok(Ok(n)) if n > 0 => {
-            let banner = String::from_utf8_lossy(&buffer[..n]);
-            let cleaned = banner.lines().next()?.trim();
-            if !cleaned.is_empty() {
-                Some(cleaned.to_string())
+            // Sanitize the banner to remove non-printable characters
+            let cleaned = sanitize_banner(&buffer[..n]);
+            
+            // Take the first non-empty line
+            let first_line = cleaned.lines()
+                .find(|line| !line.trim().is_empty())?
+                .trim()
+                .to_string();
+            
+            if !first_line.is_empty() {
+                Some(first_line)
             } else {
                 None
             }
@@ -559,28 +612,51 @@ async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
     let mut vulns = Vec::new();
     
     if port.state == PortState::Open {
-        // Analisi banner se disponibile
+        // Analisi banner avanzata con il nuovo modulo fingerprint
         if let Some(ref banner) = port.banner {
-            // Estrai informazioni dal banner
-            let banner_lower = banner.to_lowercase();
+            // Determina il servizio dalla porta
+            let service_from_port = match port.port_id {
+                80 | 8080 => "http",
+                443 | 8443 => "https",
+                22 => "ssh",
+                21 => "ftp",
+                25 => "smtp",
+                3306 => "mysql",
+                5432 => "postgresql",
+                27017 => "mongodb",
+                _ => "unknown"
+            };
             
-            if banner_lower.contains("apache") {
-                port.service_name = Some("http".to_string());
-                if let Some(version) = extract_version(&banner_lower, "apache") {
-                    port.service_version = Some(version);
+            // Clone il servizio per evitare problemi di borrowing
+            let service = port.service_name.clone().unwrap_or_else(|| service_from_port.to_string());
+            
+            // Estrai versione precisa usando fingerprint avanzato
+            if let Some(version) = fingerprint::extract_service_version(&service, banner) {
+                // Imposta nome servizio se non già impostato
+                if port.service_name.is_none() {
+                    port.service_name = Some(service.clone());
                 }
-            } else if banner_lower.contains("nginx") {
-                port.service_name = Some("http".to_string());
-                if let Some(version) = extract_version(&banner_lower, "nginx") {
-                    port.service_version = Some(version);
+                
+                port.service_version = Some(version.clone());
+                
+                // Calcola confidence score
+                let _confidence = fingerprint::get_version_confidence(banner, Some(&version));
+            }
+            
+            // Rilevamento web application per HTTP/HTTPS
+            if service == "http" || service == "https" {
+                let web_apps = fingerprint::detect_web_application(banner, None);
+                if !web_apps.is_empty() {
+                    let apps_str = web_apps.join(", ");
+                    let current_version = port.service_version.as_deref().unwrap_or("");
+                    port.service_version = Some(format!("{} ({})", current_version, apps_str));
                 }
-            } else if banner_lower.contains("ssh") {
-                port.service_name = Some("ssh".to_string());
-                if let Some(version) = extract_version(&banner_lower, "openssh") {
-                    port.service_version = Some(version);
+                
+                // Estrai versione PHP se presente
+                if let Some(php_version) = fingerprint::extract_php_version(banner) {
+                    let current_version = port.service_version.as_deref().unwrap_or("");
+                    port.service_version = Some(format!("{} + {}", current_version, php_version));
                 }
-            } else if banner_lower.contains("ftp") {
-                port.service_name = Some("ftp".to_string());
             }
         }
         
@@ -1015,25 +1091,61 @@ fn generate_human_output(scan_results: &ScanResult) -> String {
             output.push_str(&format!("\n🟢 OPEN PORTS ({}):\n", open_ports.len().to_string().green()));
             
             for port in &open_ports {
-                output.push_str(&format!("   {} ", port.port_id.to_string().bright_green()));
-                output.push_str(&format!("{:<6} ", port.protocol.cyan()));
+                // Port number (5 chars, right-aligned)
+                output.push_str(&format!("   {:>5} ", port.port_id.to_string().bright_green()));
                 
+                // Protocol (4 chars, left-aligned)
+                output.push_str(&format!("{:<4}  ", port.protocol.cyan()));
+                
+                // Service name (16 chars, left-aligned)
                 if let Some(ref service) = port.service_name {
-                    output.push_str(&format!("{:<15} ", service.yellow()));
-                    if let Some(ref version) = port.service_version {
-                        output.push_str(&format!("{:<20} ", version.white()));
-                    }
+                    output.push_str(&format!("{:<16} ", service.yellow()));
                 } else {
-                    output.push_str(&format!("{:<35} ", "unknown".dimmed()));
+                    output.push_str(&format!("{:<16} ", "unknown".dimmed()));
                 }
                 
-                if let Some(ref banner) = port.banner {
-                    let short_banner = if banner.len() > 40 {
-                        format!("{}...", &banner[..37])
+                // Service version (28 chars, left-aligned)
+                if let Some(ref version) = port.service_version {
+                    let version_display = if version.len() > 28 {
+                        format!("{}...", &version[..25])
                     } else {
-                        banner.clone()
+                        version.clone()
                     };
-                    output.push_str(&format!("{}", short_banner.dimmed()));
+                    output.push_str(&format!("{:<28} ", version_display.white()));
+                } else {
+                    output.push_str(&format!("{:<28} ", "".dimmed()));
+                }
+                
+                // Banner (truncated to 50 chars, sanitized)
+                if let Some(ref banner) = port.banner {
+                    // Check if banner contains mostly readable text
+                    let alphanumeric_count = banner.chars()
+                        .filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '.' || *c == '-' || *c == '/')
+                        .count();
+                    let total_chars = banner.chars().count();
+                    let readable_ratio = if total_chars > 0 {
+                        alphanumeric_count as f32 / total_chars as f32
+                    } else {
+                        0.0
+                    };
+                    
+                    // If banner is mostly noise, show [binary data]
+                    let display_banner = if readable_ratio < 0.7 || total_chars < 3 {
+                        "[binary data]".to_string()
+                    } else {
+                        // Clean display: keep only reasonable characters
+                        let sanitized: String = banner.chars()
+                            .filter(|c| c.is_ascii_graphic() || *c == ' ')
+                            .collect();
+                        
+                        if sanitized.len() > 50 {
+                            format!("{}...", &sanitized[..47])
+                        } else {
+                            sanitized
+                        }
+                    };
+                    
+                    output.push_str(&format!("{}", display_banner.dimmed()));
                 }
                 output.push_str("\n");
             }
@@ -1259,6 +1371,33 @@ fn get_timing_config(template: &str) -> (u64, usize, u64) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    
+    // Network Discovery Mode (only available with feature flag)
+    #[cfg(feature = "network-discovery")]
+    if args.network_discovery {
+        println!("{}", "🌐 Network Discovery Mode Activated".green().bold());
+        
+        let mut discovery = NetworkDiscovery::new()
+            .with_timeout(Duration::from_millis(args.discovery_timeout))
+            .with_concurrency(args.concurrency);
+            
+        if args.aggressive_discovery {
+            discovery = discovery.aggressive();
+        }
+        
+        discovery.include_loopback = args.include_loopback;
+        
+        let discovery_result = discovery.discover_network().await?;
+        
+        // Output discovery results
+        print_discovery_results(&discovery_result, &args).await?;
+        
+        if !args.output_format.eq("human") || args.output_file.is_some() {
+            save_discovery_results(&discovery_result, &args).await?;
+        }
+        
+        return Ok(());
+    }
     
     // Parse targets e porte usando le nuove funzioni
     let targets = parse_targets(&args.target)?;
@@ -1545,4 +1684,308 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+// Network Discovery Output Functions (only compiled with feature flag)
+#[cfg(feature = "network-discovery")]
+async fn print_discovery_results(result: &NetworkDiscoveryResult, _args: &Args) -> Result<(), Box<dyn std::error::Error>> {
+    println!("\n{}", "🌐 NETWORK DISCOVERY RESULTS".green().bold());
+    println!("{}", "═".repeat(50).bright_black());
+
+    // Summary
+    println!("📊 {}: {} hosts discovered in {}ms", 
+             "Summary".cyan().bold(), 
+             result.discovered_hosts.len().to_string().green(), 
+             result.scan_duration.to_string().yellow());
+
+    // Network interfaces
+    println!("\n📡 {} ({} interfaces):", "Network Interfaces".cyan().bold(), result.network_interfaces.len());
+    for interface in &result.network_interfaces {
+        let status = if interface.is_up { "UP".green() } else { "DOWN".red() };
+        let loopback = if interface.is_loopback { " [LOOPBACK]".bright_black() } else { "".bright_black() };
+        
+        println!("   {} {} - {} {}{}",
+                 "•".bright_blue(),
+                 interface.name.bright_white(),
+                 interface.ip_address.to_string().yellow(),
+                 status,
+                 loopback);
+        
+        if let Some(mac) = &interface.mac_address {
+            println!("     MAC: {}", mac.bright_black());
+        }
+    }
+
+    // Network ranges
+    println!("\n🌐 {} ({} ranges):", "Network Ranges".cyan().bold(), result.network_ranges.len());
+    for range in &result.network_ranges {
+        println!("   {} {}", "•".bright_blue(), range.yellow());
+    }
+
+    // Gateway and DNS
+    if let Some(gateway) = result.gateway {
+        println!("\n🚪 {}: {}", "Default Gateway".cyan().bold(), gateway.to_string().green());
+    }
+
+    if !result.dns_servers.is_empty() {
+        println!("\n🔍 {} ({} servers):", "DNS Servers".cyan().bold(), result.dns_servers.len());
+        for dns in &result.dns_servers {
+            println!("   {} {}", "•".bright_blue(), dns.to_string().yellow());
+        }
+    }
+
+    // Discovery methods used
+    println!("\n🔧 {}: {}", "Discovery Methods".cyan().bold(), result.discovery_methods_used.join(", ").bright_white());
+
+    // Discovered hosts
+    if result.discovered_hosts.is_empty() {
+        println!("\n❌ No hosts discovered");
+        return Ok(());
+    }
+
+    println!("\n👥 {} ({} hosts):", "Discovered Hosts".cyan().bold(), result.discovered_hosts.len());
+    println!("{}", "─".repeat(80).bright_black());
+
+    for (i, host) in result.discovered_hosts.iter().enumerate() {
+        let host_num = format!("[{}]", i + 1).bright_black();
+        let ip = host.ip_address.to_string().bright_white();
+        let gateway_marker = if host.is_gateway { " 🚪" } else { "" };
+
+        println!("\n{} {}{}", host_num, ip, gateway_marker);
+
+        // MAC Address and Vendor
+        if let Some(mac) = &host.mac_address {
+            let vendor_info = if let Some(vendor) = &host.vendor {
+                format!(" ({})", vendor.green())
+            } else if let Some(vendor) = get_mac_vendor(mac) {
+                format!(" ({})", vendor.green())
+            } else {
+                String::new()
+            };
+            println!("   MAC: {}{}", mac.bright_cyan(), vendor_info);
+        }
+
+        // Hostname
+        if let Some(hostname) = &host.hostname {
+            println!("   Hostname: {}", hostname.bright_green());
+        }
+
+        // Response time
+        if let Some(response_time) = host.response_time {
+            println!("   Response Time: {}ms", response_time.to_string().yellow());
+        }
+
+        // Discovery method
+        println!("   Discovery: {}", host.discovery_method.bright_blue());
+
+        // Port hints
+        if !host.ports_hint.is_empty() {
+            let ports_str: Vec<String> = host.ports_hint.iter().map(|p| p.to_string()).collect();
+            println!("   Common Ports: {}", ports_str.join(", ").bright_magenta());
+        }
+    }
+
+    println!("\n{}", "═".repeat(50).bright_black());
+    println!("✅ Network discovery completed successfully");
+
+    Ok(())
+}
+
+#[cfg(feature = "network-discovery")]
+async fn save_discovery_results(result: &NetworkDiscoveryResult, args: &Args) -> Result<(), Box<dyn std::error::Error>> {
+    let output = match args.output_format.as_str() {
+        "json" => serde_json::to_string_pretty(result)?,
+        "yaml" => serde_yaml::to_string(result)?,
+        "xml" => generate_discovery_xml_output(result),
+        "csv" => generate_discovery_csv_output(result),
+        "md" | "markdown" => generate_discovery_markdown_output(result),
+        "human" | _ => generate_discovery_human_output(result),
+    };
+
+    if let Some(filename) = &args.output_file {
+        tokio::fs::write(filename, &output).await?;
+        println!("💾 Discovery results saved to: {}", filename.green());
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "network-discovery")]
+fn generate_discovery_xml_output(result: &NetworkDiscoveryResult) -> String {
+    let mut xml = String::new();
+    xml.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    xml.push_str("<nextmap_network_discovery>\n");
+    xml.push_str(&format!("  <summary>\n"));
+    xml.push_str(&format!("    <hosts_discovered>{}</hosts_discovered>\n", result.discovered_hosts.len()));
+    xml.push_str(&format!("    <scan_duration_ms>{}</scan_duration_ms>\n", result.scan_duration));
+    xml.push_str(&format!("  </summary>\n"));
+
+    if let Some(gateway) = result.gateway {
+        xml.push_str(&format!("  <gateway>{}</gateway>\n", gateway));
+    }
+
+    xml.push_str("  <discovered_hosts>\n");
+    for host in &result.discovered_hosts {
+        xml.push_str("    <host>\n");
+        xml.push_str(&format!("      <ip_address>{}</ip_address>\n", host.ip_address));
+        if let Some(mac) = &host.mac_address {
+            xml.push_str(&format!("      <mac_address>{}</mac_address>\n", mac));
+        }
+        if let Some(hostname) = &host.hostname {
+            xml.push_str(&format!("      <hostname>{}</hostname>\n", hostname));
+        }
+        if let Some(response_time) = host.response_time {
+            xml.push_str(&format!("      <response_time_ms>{}</response_time_ms>\n", response_time));
+        }
+        xml.push_str(&format!("      <discovery_method>{}</discovery_method>\n", host.discovery_method));
+        xml.push_str(&format!("      <is_gateway>{}</is_gateway>\n", host.is_gateway));
+        xml.push_str("    </host>\n");
+    }
+    xml.push_str("  </discovered_hosts>\n");
+    xml.push_str("</nextmap_network_discovery>\n");
+    xml
+}
+
+#[cfg(feature = "network-discovery")]
+fn generate_discovery_csv_output(result: &NetworkDiscoveryResult) -> String {
+    let mut csv = String::new();
+    csv.push_str("IP Address,MAC Address,Hostname,Response Time (ms),Discovery Method,Is Gateway,Vendor\n");
+
+    for host in &result.discovered_hosts {
+        let mac_str = host.mac_address.as_deref().unwrap_or("");
+        let hostname_str = host.hostname.as_deref().unwrap_or("");
+        let response_time_str = host.response_time.map_or(String::new(), |t| t.to_string());
+        let vendor_str = host.vendor.as_deref().unwrap_or("");
+
+        csv.push_str(&format!(
+            "{},{},{},{},{},{},{}\n",
+            host.ip_address,
+            mac_str,
+            hostname_str,
+            response_time_str,
+            host.discovery_method,
+            host.is_gateway,
+            vendor_str
+        ));
+    }
+
+    csv
+}
+
+#[cfg(feature = "network-discovery")]
+fn generate_discovery_markdown_output(result: &NetworkDiscoveryResult) -> String {
+    let mut md = String::new();
+    md.push_str("# NextMap Network Discovery Report\n\n");
+
+    // Summary
+    md.push_str("## Summary\n\n");
+    md.push_str(&format!("- **Hosts Discovered**: {}\n", result.discovered_hosts.len()));
+    md.push_str(&format!("- **Scan Duration**: {}ms\n", result.scan_duration));
+    md.push_str(&format!("- **Discovery Methods**: {}\n", result.discovery_methods_used.join(", ")));
+
+    if let Some(gateway) = result.gateway {
+        md.push_str(&format!("- **Default Gateway**: {}\n", gateway));
+    }
+
+    md.push_str("\n");
+
+    // Network Interfaces
+    md.push_str("## Network Interfaces\n\n");
+    md.push_str("| Interface | IP Address | MAC Address | Status |\n");
+    md.push_str("|-----------|------------|-------------|--------|\n");
+
+    for interface in &result.network_interfaces {
+        let mac_str = interface.mac_address.as_deref().unwrap_or("-");
+        let status = if interface.is_up { "UP" } else { "DOWN" };
+        md.push_str(&format!("| {} | {} | {} | {} |\n", 
+                            interface.name, interface.ip_address, mac_str, status));
+    }
+
+    md.push_str("\n");
+
+    // Discovered Hosts
+    if !result.discovered_hosts.is_empty() {
+        md.push_str("## Discovered Hosts\n\n");
+        md.push_str("| IP Address | MAC Address | Hostname | Response Time | Discovery Method | Gateway |\n");
+        md.push_str("|------------|-------------|----------|---------------|------------------|----------|\n");
+
+        for host in &result.discovered_hosts {
+            let mac_str = host.mac_address.as_deref().unwrap_or("-");
+            let hostname_str = host.hostname.as_deref().unwrap_or("-");
+            let response_time_str = host.response_time.map_or("-".to_string(), |t| format!("{}ms", t));
+            let gateway_str = if host.is_gateway { "Yes" } else { "No" };
+
+            md.push_str(&format!("| {} | {} | {} | {} | {} | {} |\n",
+                                host.ip_address,
+                                mac_str,
+                                hostname_str,
+                                response_time_str,
+                                host.discovery_method,
+                                gateway_str));
+        }
+    }
+
+    md.push_str("\n---\n");
+    md.push_str(&format!("*Generated by NextMap v{} on {}*\n", 
+                        env!("CARGO_PKG_VERSION"), 
+                        chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC")));
+
+    md
+}
+
+#[cfg(feature = "network-discovery")]
+fn generate_discovery_human_output(result: &NetworkDiscoveryResult) -> String {
+    let mut output = String::new();
+    
+    output.push_str("🌐 NETWORK DISCOVERY REPORT\n");
+    output.push_str("═══════════════════════════\n\n");
+
+    output.push_str(&format!("📊 Summary: {} hosts discovered in {}ms\n", 
+                            result.discovered_hosts.len(), result.scan_duration));
+    
+    if let Some(gateway) = result.gateway {
+        output.push_str(&format!("🚪 Default Gateway: {}\n", gateway));
+    }
+
+    output.push_str(&format!("🔧 Discovery Methods: {}\n\n", result.discovery_methods_used.join(", ")));
+
+    if !result.discovered_hosts.is_empty() {
+        output.push_str(&format!("👥 Discovered Hosts ({}):\n", result.discovered_hosts.len()));
+        output.push_str(&"─".repeat(50));
+        output.push('\n');
+
+        for (i, host) in result.discovered_hosts.iter().enumerate() {
+            output.push_str(&format!("\n[{}] {}\n", i + 1, host.ip_address));
+            
+            if let Some(mac) = &host.mac_address {
+                let vendor_info = if let Some(vendor) = &host.vendor {
+                    format!(" ({})", vendor)
+                } else if let Some(vendor) = get_mac_vendor(mac) {
+                    format!(" ({})", vendor)
+                } else {
+                    String::new()
+                };
+                output.push_str(&format!("   MAC: {}{}\n", mac, vendor_info));
+            }
+
+            if let Some(hostname) = &host.hostname {
+                output.push_str(&format!("   Hostname: {}\n", hostname));
+            }
+
+            if let Some(response_time) = host.response_time {
+                output.push_str(&format!("   Response Time: {}ms\n", response_time));
+            }
+
+            output.push_str(&format!("   Discovery: {}\n", host.discovery_method));
+
+            if host.is_gateway {
+                output.push_str("   🚪 Gateway device\n");
+            }
+        }
+    }
+
+    output.push_str("\n═══════════════════════════\n");
+    output.push_str("✅ Network discovery completed\n");
+
+    output
 }

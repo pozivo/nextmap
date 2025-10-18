@@ -134,7 +134,6 @@ jobs:
           
           ### Linux
           - **nextmap-linux-x64.tar.gz** - Most Linux distributions (64-bit)
-          - **nextmap-linux-musl-x64.tar.gz** - Static binary for minimal systems
           
           ### macOS
           - **nextmap-macos-x64.tar.gz** - Intel Macs (64-bit)
