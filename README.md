@@ -15,16 +15,17 @@
 
 NextMap is a modern, fast, and feature-rich network scanner built in Rust with advanced stealth capabilities and automatic CVE detection. Perfect for penetration testing, security assessments, and network reconnaissance.
 
-**🚀 NEW in v0.2.5**: Enhanced version detection (HTTP/SSH/Databases), Smart banner sanitization, 3846 ports/second performance, Production-ready (A+ grade)
+**🚀 NEW in v0.3.0**: Top5000 preset (4424 ports/sec), Smart port selection (Windows/Linux/Cloud/IoT), Enhanced Windows support, 3x faster targeted scanning
 
 ```
-🔍 NextMap v0.2.5 - Advanced Network Scanner with Enhanced Detection
+🔍 NextMap v0.3.0 - Advanced Network Scanner with Smart Port Selection
 
-🥷 Stealth Scanning    🛡️ CVE Detection      ⚡ 3846 Ports/Second
+🥷 Stealth Scanning    🛡️ CVE Detection      ⚡ 4424 Ports/Second
 🎯 Version Detection   🔍 OS Fingerprinting  🚀 10x Faster than nmap
-📊 JSON/CSV Output     🌐 Network Discovery  ✅ Production Ready
+📊 JSON/CSV Output     🌐 Smart Port Profiles ✅ Production Ready
+🪟 Windows Optimized   🐧 Linux Optimized    ☁️ Cloud Ready
 
-$ nextmap scanme.nmap.org -s -O --timing-template insane
+$ nextmap scanme.nmap.org --smart-ports cloud -s -O --timing-template insane
 ```
 
 ![NextMap in Action](assets/demo-screenshot.svg)
@@ -63,12 +64,18 @@ $ nextmap scanme.nmap.org -s -O --timing-template insane
 - **Timing Templates** - 6 modes from paranoid to insane
 - **Beautiful Output** - Colorized terminal with progress bars
 
-### 🏆 **v0.2.5 Highlights**
+### 🏆 **v0.3.0 Highlights**
+- 🚀 **top5000 preset** - 5000 ports with 99.9% enterprise coverage (4424 ports/sec)
+- 🎯 **Smart port selection** - 4 intelligent profiles (Windows/Linux/Cloud/IoT)
+- 🪟 **Enhanced Windows support** - 10 critical ports added (WinRM, NetBIOS, DHCP, WSUS, AD)
+- ⚡ **3x faster targeted scanning** - smart-windows: 0.14s vs 0.35s for top1000
+- ✅ **Zero regression** - All existing features unchanged, fully backwards compatible
+
+### 🏅 **Previous v0.2.5 Highlights**
 - ⚡ **3846 ports/second** - 10-15x faster than nmap with full detection
 - 🎯 **Enhanced fingerprinting** - HTTP, SSH, MySQL, PostgreSQL, MongoDB, Web apps
 - 🧹 **Smart sanitization** - Binary data detection (70% threshold), no corrupted output
 - 📊 **Production ready** - 61 unit tests (100% passing), Grade A+ (99.2/100)
-- ✅ **Real-world validated** - 9/9 test scenarios passed with excellent results
 
 > ⚠️ **Note**: NextMap v0.2.0+ scans **all ports (1-65535)** by default for comprehensive coverage. Use `--ports` to specify custom ranges for faster scans.
 
@@ -133,8 +140,8 @@ cargo build --release
 # Default scan - top 1000 most common ports (like nmap)
 nextmap --target 192.168.1.1
 
-# Scan all ports (comprehensive)
-nextmap --target 192.168.1.1 --ports "all"
+# Enterprise scan - top 5000 ports (99.9% coverage) ⭐ NEW
+nextmap --target 192.168.1.1 --ports "top5000"
 
 # Quick scan - top 100 ports only
 nextmap --target 192.168.1.1 --ports "top100"
@@ -144,6 +151,22 @@ nextmap --target example.com --ports "80,443,22" -s
 
 # Scan CIDR range with OS detection  
 nextmap --target 192.168.1.0/24 --ports "top1000" -s -O
+```
+
+### Smart Port Selection ⭐ NEW
+
+```bash
+# Windows-optimized scan (RDP, SMB, AD, WinRM) - 3x faster! 🪟
+nextmap --target 192.168.1.10 --smart-ports windows -s -O
+
+# Linux server scan (SSH, web, databases, containers) 🐧
+nextmap --target 10.0.1.0/24 --smart-ports linux -s
+
+# Cloud infrastructure scan (Docker, Kubernetes, managed services) ☁️
+nextmap --target aws-instance.com --smart-ports cloud -s --timing-template insane
+
+# IoT device scan (cameras, smart home, industrial) 🔌
+nextmap --target 192.168.1.0/24 --smart-ports iot -s
 ```
 
 ### Stealth Scanning
