@@ -16,6 +16,7 @@ mod models;
 mod stealth;
 mod cve;
 mod fingerprint;
+mod output;
 #[cfg(feature = "network-discovery")]
 mod discovery;
 
@@ -24,7 +25,10 @@ use stealth::*;
 use cve::*;
 use fingerprint::*;
 #[cfg(feature = "network-discovery")]
-use discovery::*; 
+use discovery::*;
+
+// Import Enhanced Output types
+use models::{ServiceCategory, RiskLevel, DetectionMethod}; 
 
 // --- CLI Configuration with clap ---
 
@@ -51,7 +55,7 @@ struct Args {
     #[arg(short = 'O', long, default_value_t = false)]
     os_scan: bool,
     
-    /// Output format (human, json, yaml, xml, csv, md)
+    /// Output format (human, json, yaml, xml, csv, md, html)
     #[arg(short, long, default_value = "human")]
     output_format: String,
 
@@ -510,6 +514,11 @@ async fn run_scan_syn(target: &str, port: u16, timeout: Duration) -> Port {
         service_name: None,
         service_version: None,
         banner: None,
+        service_category: None,
+        risk_level: None,
+        detection_method: None,
+        cve_count: None,
+        full_banner: None,
     };
     
     match tokio::time::timeout(timeout, TcpStream::connect(&socket_addr)).await {
@@ -541,6 +550,11 @@ async fn run_scan_udp(target: &str, port: u16, timeout: Duration) -> Port {
         service_name: None,
         service_version: None,
         banner: None,
+        service_category: None,
+        risk_level: None,
+        detection_method: None,
+        cve_count: None,
+        full_banner: None,
     };
     
     // Create local UDP socket
@@ -1412,6 +1426,44 @@ async fn analyze_open_port(mut port: Port, target: &str, timeout: Duration) -> (
                 }
             }
         }
+        
+        // ========================================
+        // POPULATE ENHANCED OUTPUT METADATA
+        // ========================================
+        
+        // 1. Detection Method
+        port.detection_method = if port.service_version.as_ref()
+            .map(|v| v != "Unknown" && v != "HTTP Server" && v != "HTTPS Server")
+            .unwrap_or(false) {
+            Some(DetectionMethod::EnhancedProbe)
+        } else if port.banner.is_some() {
+            Some(DetectionMethod::Banner)
+        } else {
+            Some(DetectionMethod::PortMapping)
+        };
+        
+        // 2. Service Category
+        let service_name = port.service_name.as_deref().unwrap_or("unknown");
+        port.service_category = Some(ServiceCategory::from_service(service_name, port.port_id));
+        
+        // 3. CVE Count
+        port.cve_count = Some(vulns.len());
+        
+        // 4. Full Banner (store untruncated banner)
+        port.full_banner = port.banner.clone();
+        
+        // 5. Risk Level (must be calculated after category and cve_count)
+        let has_version = port.service_version.as_ref()
+            .map(|v| v != "Unknown" && !v.is_empty())
+            .unwrap_or(false);
+        
+        port.risk_level = Some(RiskLevel::calculate(
+            service_name,
+            port.port_id,
+            port.service_category.as_ref().unwrap(),
+            has_version,
+            vulns.len()
+        ));
     }
     
     (port, vulns)
@@ -1502,11 +1554,26 @@ fn generate_xml_output(scan_results: &ScanResult) -> String {
 
 fn generate_csv_output(scan_results: &ScanResult) -> String {
     let mut csv = String::new();
-    csv.push_str("IP,Hostname,Port,Protocol,State,Service,Version,Banner\n");
+    // Enhanced CSV header with new metadata columns
+    csv.push_str("IP,Hostname,Port,Protocol,State,Service,Version,Banner,Category,RiskLevel,DetectionMethod,CVECount\n");
     
     for host in &scan_results.hosts {
         for port in &host.ports {
-            csv.push_str(&format!("\"{}\",\"{}\",{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\"\n",
+            let category = port.service_category.as_ref()
+                .map(|c| c.display_name())
+                .unwrap_or("Unknown");
+            
+            let risk_level = port.risk_level.as_ref()
+                .map(|r| format!("{:?}", r))
+                .unwrap_or_else(|| "Unknown".to_string());
+            
+            let detection_method = port.detection_method.as_ref()
+                .map(|d| d.display_name())
+                .unwrap_or("Unknown");
+            
+            let cve_count = port.cve_count.unwrap_or(0);
+            
+            csv.push_str(&format!("\"{}\",\"{}\",{},\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",\"{}\",{}\n",
                 host.ip_address,
                 host.hostname.as_deref().unwrap_or(""),
                 port.port_id,
@@ -1519,7 +1586,11 @@ fn generate_csv_output(scan_results: &ScanResult) -> String {
                 },
                 port.service_name.as_deref().unwrap_or(""),
                 port.service_version.as_deref().unwrap_or(""),
-                port.banner.as_deref().unwrap_or("").replace("\"", "\\\"")
+                port.banner.as_deref().unwrap_or("").replace("\"", "\\\""),
+                category,
+                risk_level,
+                detection_method,
+                cve_count
             ));
         }
     }
@@ -2070,6 +2141,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         service_name: None,
                         service_version: None,
                         banner: None,
+                        service_category: None,
+                        risk_level: None,
+                        detection_method: None,
+                        cve_count: None,
+                        full_banner: None,
                     }
                 } else {
                     // Scansione normale
@@ -2197,13 +2273,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         hosts: all_hosts,
     };
 
-    // Serialization (Human, JSON, YAML, XML, CSV, MD)
+    // Serialization (Human, JSON, YAML, XML, CSV, MD, HTML)
     let output = match args.output_format.as_str() {
         "json" => serde_json::to_string_pretty(&scan_results)?,
         "yaml" => serde_yaml::to_string(&scan_results)?,
         "xml" => generate_xml_output(&scan_results),
         "csv" => generate_csv_output(&scan_results),
         "md" | "markdown" => generate_markdown_output(&scan_results),
+        "html" => output::generate_html_report(&scan_results),
         "human" | _ => generate_human_output(&scan_results),
     };
     
