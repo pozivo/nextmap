@@ -1973,23 +1973,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse targets e porte usando le nuove funzioni
     let targets = parse_targets(&args.target)?;
     
+    // Determine if we should route progress messages to stderr
+    // This happens when: 1) outputting to file, OR 2) using structured output format (json, csv, etc.)
+    let use_stderr = args.output_file.is_some() || !matches!(args.output_format.as_str(), "human");
+    
     // Smart port selection has priority over --ports
     let tcp_ports = if let Some(smart_type) = &args.smart_ports {
         match smart_type.to_lowercase().as_str() {
             "windows" => {
-                println!("🪟 Using Windows-optimized port selection (~150 ports)");
+                if use_stderr {
+                    eprintln!("🪟 Using Windows-optimized port selection (~150 ports)");
+                } else {
+                    println!("🪟 Using Windows-optimized port selection (~150 ports)");
+                }
                 get_windows_smart_ports()
             },
             "linux" => {
-                println!("🐧 Using Linux-optimized port selection (~120 ports)");
+                if use_stderr {
+                    eprintln!("🐧 Using Linux-optimized port selection (~120 ports)");
+                } else {
+                    println!("🐧 Using Linux-optimized port selection (~120 ports)");
+                }
                 get_linux_smart_ports()
             },
             "cloud" => {
-                println!("☁️  Using Cloud-optimized port selection (~100 ports)");
+                if use_stderr {
+                    eprintln!("☁️  Using Cloud-optimized port selection (~100 ports)");
+                } else {
+                    println!("☁️  Using Cloud-optimized port selection (~100 ports)");
+                }
                 get_cloud_smart_ports()
             },
             "iot" => {
-                println!("🔌 Using IoT/Embedded-optimized port selection (~80 ports)");
+                if use_stderr {
+                    eprintln!("🔌 Using IoT/Embedded-optimized port selection (~80 ports)");
+                } else {
+                    println!("🔌 Using IoT/Embedded-optimized port selection (~80 ports)");
+                }
                 get_iot_smart_ports()
             },
             _ => {
@@ -2019,19 +2039,43 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // CVE Scanning initialization
     let cve_db = if args.cve_scan {
-        println!("🛡️ Initializing CVE database...");
+        if use_stderr {
+            eprintln!("🛡️ Initializing CVE database...");
+        } else {
+            println!("🛡️ Initializing CVE database...");
+        }
         let db = initialize_cve_database(&args.cve_database).await?;
         
         if args.update_cve {
-            println!("📡 Updating CVE database from NIST...");
+            if use_stderr {
+                eprintln!("📡 Updating CVE database from NIST...");
+            } else {
+                println!("📡 Updating CVE database from NIST...");
+            }
             match db.update_database().await {
-                Ok(count) => println!("✅ Updated with {} new CVEs", count),
-                Err(e) => println!("⚠️ CVE update failed: {} (using cached data)", e),
+                Ok(count) => {
+                    if use_stderr {
+                        eprintln!("✅ Updated with {} new CVEs", count);
+                    } else {
+                        println!("✅ Updated with {} new CVEs", count);
+                    }
+                },
+                Err(e) => {
+                    if use_stderr {
+                        eprintln!("⚠️ CVE update failed: {} (using cached data)", e);
+                    } else {
+                        println!("⚠️ CVE update failed: {} (using cached data)", e);
+                    }
+                },
             }
         }
         
         let stats = db.get_statistics()?;
-        println!("📊 CVE Database: {} total vulnerabilities", stats.total_cves);
+        if use_stderr {
+            eprintln!("📊 CVE Database: {} total vulnerabilities", stats.total_cves);
+        } else {
+            println!("📊 CVE Database: {} total vulnerabilities", stats.total_cves);
+        }
         Some(db)
     } else {
         None
@@ -2043,56 +2087,121 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let concurrency = if args.concurrency == 100 { template_concurrency } else { args.concurrency };
     let rate_limit = if args.rate_limit == 0 { template_rate_limit } else { args.rate_limit };
     
-    println!("{}", format!("🚀 Starting NextMap scan...").cyan().bold());
+    // Messages routed to stderr when using structured output or file output
+    
+    if use_stderr {
+        eprintln!("{}", format!("🚀 Starting NextMap scan...").cyan().bold());
+    } else {
+        println!("{}", format!("🚀 Starting NextMap scan...").cyan().bold());
+    }
     
     if let Some(stealth_mode) = &args.stealth_mode {
-        println!("🥷 Stealth mode: {} enabled", stealth_mode.bright_magenta());
+        if use_stderr {
+            eprintln!("🥷 Stealth mode: {} enabled", stealth_mode.bright_magenta());
+        } else {
+            println!("🥷 Stealth mode: {} enabled", stealth_mode.bright_magenta());
+        }
     }
     
     if args.cve_scan {
-        println!("🛡️ CVE scanning: {}", "ENABLED".green());
+        if use_stderr {
+            eprintln!("🛡️ CVE scanning: {}", "ENABLED".green());
+        } else {
+            println!("🛡️ CVE scanning: {}", "ENABLED".green());
+        }
     }
     
-    println!("📍 Targets: {} hosts", targets.len().to_string().green());
+    if use_stderr {
+        eprintln!("📍 Targets: {} hosts", targets.len().to_string().green());
+    } else {
+        println!("📍 Targets: {} hosts", targets.len().to_string().green());
+    }
     
     // Informazioni su porte scansionate (nmap-style)
     if args.smart_ports.is_some() {
         // Smart ports already displayed in selection message above
     } else if tcp_ports.len() >= 5000 {
-        println!("🔍 TCP Ports: {} (top 5000 common ports - enterprise coverage)", tcp_ports.len().to_string().yellow());
+        if use_stderr {
+            eprintln!("🔍 TCP Ports: {} (top 5000 common ports - enterprise coverage)", tcp_ports.len().to_string().yellow());
+        } else {
+            println!("🔍 TCP Ports: {} (top 5000 common ports - enterprise coverage)", tcp_ports.len().to_string().yellow());
+        }
     } else if tcp_ports.len() == get_top_1000_ports().len() {
-        println!("🔍 TCP Ports: {} (top 1000 common ports - nmap default)", tcp_ports.len().to_string().yellow());
+        if use_stderr {
+            eprintln!("🔍 TCP Ports: {} (top 1000 common ports - nmap default)", tcp_ports.len().to_string().yellow());
+        } else {
+            println!("🔍 TCP Ports: {} (top 1000 common ports - nmap default)", tcp_ports.len().to_string().yellow());
+        }
     } else if tcp_ports.len() == get_top_100_ports().len() {
-        println!("🔍 TCP Ports: {} (top 100 common ports)", tcp_ports.len().to_string().yellow());
+        if use_stderr {
+            eprintln!("🔍 TCP Ports: {} (top 100 common ports)", tcp_ports.len().to_string().yellow());
+        } else {
+            println!("🔍 TCP Ports: {} (top 100 common ports)", tcp_ports.len().to_string().yellow());
+        }
     } else if tcp_ports.len() == 65535 {
-        println!("🔍 TCP Ports: {} (all ports)", tcp_ports.len().to_string().yellow());
+        if use_stderr {
+            eprintln!("🔍 TCP Ports: {} (all ports)", tcp_ports.len().to_string().yellow());
+        } else {
+            println!("🔍 TCP Ports: {} (all ports)", tcp_ports.len().to_string().yellow());
+        }
     } else {
-        println!("🔍 TCP Ports: {} custom ports", tcp_ports.len().to_string().yellow());
+        if use_stderr {
+            eprintln!("🔍 TCP Ports: {} custom ports", tcp_ports.len().to_string().yellow());
+        } else {
+            println!("🔍 TCP Ports: {} custom ports", tcp_ports.len().to_string().yellow());
+        }
     }
     
     if args.udp_scan {
-        println!("🔍 UDP Ports: {} ports", udp_ports.len().to_string().yellow());
+        if use_stderr {
+            eprintln!("🔍 UDP Ports: {} ports", udp_ports.len().to_string().yellow());
+        } else {
+            println!("🔍 UDP Ports: {} ports", udp_ports.len().to_string().yellow());
+        }
     }
     
     // Avviso per scan di molte porte (migliorato)
     if tcp_ports.len() >= 65535 {
-        println!("⚠️  {}: Full port scan (1-65535) detected!", "WARNING".yellow().bold());
-        println!("    This comprehensive scan will take considerable time.");
-        println!("💡 {}: Consider using --ports \"top1000\" for faster results", "TIP".cyan().bold());
-        println!("    or --timing-template aggressive for faster scanning");
+        if use_stderr {
+            eprintln!("⚠️  {}: Full port scan (1-65535) detected!", "WARNING".yellow().bold());
+            eprintln!("    This comprehensive scan will take considerable time.");
+            eprintln!("💡 {}: Consider using --ports \"top1000\" for faster results", "TIP".cyan().bold());
+            eprintln!("    or --timing-template aggressive for faster scanning");
+        } else {
+            println!("⚠️  {}: Full port scan (1-65535) detected!", "WARNING".yellow().bold());
+            println!("    This comprehensive scan will take considerable time.");
+            println!("💡 {}: Consider using --ports \"top1000\" for faster results", "TIP".cyan().bold());
+            println!("    or --timing-template aggressive for faster scanning");
+        }
     } else if tcp_ports.len() > 5000 {
-        println!("⚠️  {}: Large port range ({} ports) - this may take several minutes.", 
-                 "WARNING".yellow().bold(), 
-                 tcp_ports.len().to_string().red());
-        println!("💡 {}: Use --ports \"top1000\" for faster results or --timing-template aggressive", 
-                 "TIP".cyan().bold());
+        if use_stderr {
+            eprintln!("⚠️  {}: Large port range ({} ports) - this may take several minutes.", 
+                     "WARNING".yellow().bold(), 
+                     tcp_ports.len().to_string().red());
+            eprintln!("💡 {}: Use --ports \"top1000\" for faster results or --timing-template aggressive", 
+                     "TIP".cyan().bold());
+        } else {
+            println!("⚠️  {}: Large port range ({} ports) - this may take several minutes.", 
+                     "WARNING".yellow().bold(), 
+                     tcp_ports.len().to_string().red());
+            println!("💡 {}: Use --ports \"top1000\" for faster results or --timing-template aggressive", 
+                     "TIP".cyan().bold());
+        }
     }
     
-    println!("⏱️  Timeout: {}ms | Concurrency: {} | Rate limit: {}ms", 
-             timeout.as_millis().to_string().yellow(),
-             concurrency.to_string().cyan(),
-             rate_limit.to_string().magenta());
-    println!("🎯 Timing template: {}", args.timing_template.bright_blue());
+    if use_stderr {
+        eprintln!("⏱️  Timeout: {}ms | Concurrency: {} | Rate limit: {}ms", 
+                 timeout.as_millis().to_string().yellow(),
+                 concurrency.to_string().cyan(),
+                 rate_limit.to_string().magenta());
+        eprintln!("🎯 Timing template: {}", args.timing_template.bright_blue());
+    } else {
+        println!("⏱️  Timeout: {}ms | Concurrency: {} | Rate limit: {}ms", 
+                 timeout.as_millis().to_string().yellow(),
+                 concurrency.to_string().cyan(),
+                 rate_limit.to_string().magenta());
+        println!("🎯 Timing template: {}", args.timing_template.bright_blue());
+    }
     
     // Progress bar setup
     let total_scans = targets.len() * (tcp_ports.len() + udp_ports.len());
@@ -2285,11 +2394,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     
     // Output to file or stdout
-    if let Some(filename) = args.output_file {
-        std::fs::write(&filename, &output)?;
-        println!("💾 Results saved to: {}", filename.green());
+    if let Some(filename) = &args.output_file {
+        std::fs::write(filename, &output)?;
+        eprintln!("💾 Results saved to: {}", filename.green());
     } else {
-        println!("\n{}", format!("📊 NextMap Scan Report (Format: {})", args.output_format.to_uppercase()).cyan().bold());
+        // Only print header for human-readable output
+        // Structured formats (JSON, CSV, XML, etc.) should be pure data
+        if args.output_format == "human" {
+            println!("\n{}", format!("📊 NextMap Scan Report (Format: {})", args.output_format.to_uppercase()).cyan().bold());
+        }
         println!("{}", output);
     }
 
