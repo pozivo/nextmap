@@ -294,6 +294,233 @@ pub fn detect_spring_boot(banner: &str) -> Option<String> {
     None
 }
 
+/// Extract Kafka version from ApiVersions response
+pub fn extract_kafka_version(response: &[u8]) -> Option<String> {
+    // Kafka ApiVersions response (API key 18)
+    // Response format: [correlation_id][error_code][api_versions_array]
+    // We look for the version pattern in the response
+    
+    if response.len() < 10 {
+        return None;
+    }
+    
+    // Try to find version string in response
+    // Kafka often includes version info in broker metadata
+    let response_str = String::from_utf8_lossy(response);
+    
+    // Look for common Kafka version patterns
+    let re = Regex::new(r"(?:kafka[_-]?|Apache Kafka )(\d+\.\d+\.\d+)").ok()?;
+    if let Some(caps) = re.captures(&response_str.to_lowercase()) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    // Check for numeric version in metadata
+    let re_numeric = Regex::new(r"(\d+\.\d+\.\d+)").ok()?;
+    if let Some(caps) = re_numeric.captures(&response_str) {
+        let version = caps.get(1).map(|m| m.as_str().to_string())?;
+        // Validate it looks like a Kafka version (usually 2.x or 3.x)
+        if version.starts_with("2.") || version.starts_with("3.") {
+            return Some(version);
+        }
+    }
+    
+    None
+}
+
+/// Extract MQTT version from CONNACK response
+pub fn extract_mqtt_version(response: &[u8]) -> Option<String> {
+    // MQTT CONNACK packet structure:
+    // [0x20] [remaining_length] [flags] [return_code] [properties...]
+    
+    if response.len() < 4 {
+        return None;
+    }
+    
+    // Check for CONNACK packet type (0x20)
+    if response[0] != 0x20 {
+        return None;
+    }
+    
+    // MQTT version detection based on protocol behavior
+    // MQTT 3.1.1 is most common, 5.0 has properties section
+    
+    // Check for MQTT 5.0 (has properties)
+    if response.len() > 4 && response[3] == 0x00 {
+        // Return code success + properties presence indicates MQTT 5.0
+        return Some("5.0".to_string());
+    }
+    
+    // Check for MQTT 3.1.1 (standard version)
+    if response.len() >= 4 && response[1] == 0x02 {
+        // Remaining length 2 indicates MQTT 3.1.1
+        return Some("3.1.1".to_string());
+    }
+    
+    // Default to MQTT 3.1
+    Some("3.1".to_string())
+}
+
+/// Extract Cassandra version from OPTIONS response
+pub fn extract_cassandra_version(response: &[u8]) -> Option<String> {
+    // Cassandra native protocol v4/v5
+    // SUPPORTED response contains CQL_VERSION and other options
+    
+    if response.len() < 8 {
+        return None;
+    }
+    
+    // Check for SUPPORTED frame (opcode 0x06)
+    if response.len() > 4 && response[4] == 0x06 {
+        let response_str = String::from_utf8_lossy(response);
+        
+        // Look for CQL_VERSION or Cassandra version
+        let re = Regex::new(r"(?:CQL_VERSION|cassandra[_-]?)(\d+\.\d+(?:\.\d+)?)").ok()?;
+        if let Some(caps) = re.captures(&response_str.to_lowercase()) {
+            return caps.get(1).map(|m| m.as_str().to_string());
+        }
+        
+        // Try to extract version from protocol
+        // Cassandra 3.x uses protocol v4, 4.x uses v4/v5
+        if response.len() > 1 {
+            match response[0] & 0x7F {
+                0x04 => return Some("3.x".to_string()),
+                0x05 => return Some("4.x".to_string()),
+                _ => {}
+            }
+        }
+    }
+    
+    None
+}
+
+/// Extract Apache ActiveMQ version
+pub fn extract_activemq_version(banner: &str) -> Option<String> {
+    // ActiveMQ can be detected via:
+    // 1. OpenWire protocol banner
+    // 2. Web console (Jetty server)
+    // 3. JMX port
+    
+    let banner_lower = banner.to_lowercase();
+    
+    // Check for ActiveMQ in banner
+    if banner_lower.contains("activemq") {
+        let re = Regex::new(r"activemq[/-]?(\d+\.\d+\.\d+)").ok()?;
+        if let Some(caps) = re.captures(&banner_lower) {
+            return caps.get(1).map(|m| m.as_str().to_string());
+        }
+        return Some("Unknown".to_string());
+    }
+    
+    // Check for Jetty with ActiveMQ web console
+    if banner_lower.contains("jetty") && banner_lower.contains("8161") {
+        return Some("ActiveMQ Web Console".to_string());
+    }
+    
+    None
+}
+
+/// Extract Apache Solr version
+pub fn extract_solr_version(json_response: &str) -> Option<String> {
+    // Solr admin API: /solr/admin/info/system
+    // Returns JSON with lucene and solr versions
+    
+    // Try to find Solr version
+    let re_solr = Regex::new(r#"["']?(?:solr-spec-version|solr_version)["']?\s*:\s*["']?([\d\.]+)["']?"#).ok()?;
+    if let Some(caps) = re_solr.captures(json_response) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    // Try Lucene version as fallback
+    let re_lucene = Regex::new(r#"["']?lucene-spec-version["']?\s*:\s*["']?([\d\.]+)["']?"#).ok()?;
+    if let Some(caps) = re_lucene.captures(json_response) {
+        return Some(format!("Lucene {}", caps.get(1)?.as_str()));
+    }
+    
+    None
+}
+
+/// Extract Apache Zookeeper version
+pub fn extract_zookeeper_version(response: &str) -> Option<String> {
+    // Zookeeper 'stat' command response
+    // Returns version info like: "Zookeeper version: 3.8.0-..."
+    
+    let re = Regex::new(r"(?i)zookeeper\s+version:\s*([\d\.]+)").ok()?;
+    if let Some(caps) = re.captures(response) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    // Try 'envi' command which returns environment
+    let re_envi = Regex::new(r"zookeeper\.version=([\d\.]+)").ok()?;
+    if let Some(caps) = re_envi.captures(response) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    None
+}
+
+/// Extract HashiCorp Consul version
+pub fn extract_consul_version(json_response: &str) -> Option<String> {
+    // Consul API: /v1/agent/self or /v1/status/leader
+    // Returns JSON with version information
+    
+    let re = Regex::new(r#"["']?(?:Version|version)["']?\s*:\s*["']?([\d\.]+)(?:-[a-z0-9]+)?["']?"#).ok()?;
+    if let Some(caps) = re.captures(json_response) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    // Check for specific Consul version field
+    let re_consul = Regex::new(r#"["']?ConsulVersion["']?\s*:\s*["']?([\d\.]+)["']?"#).ok()?;
+    if let Some(caps) = re_consul.captures(json_response) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    None
+}
+
+/// Extract HashiCorp Vault version
+pub fn extract_vault_version(json_response: &str) -> Option<String> {
+    // Vault API: /v1/sys/health or /v1/sys/seal-status
+    // Returns JSON with version field
+    
+    let re = Regex::new(r#"["']?version["']?\s*:\s*["']?([\d\.]+)(?:-[a-z0-9]+)?["']?"#).ok()?;
+    if let Some(caps) = re.captures(json_response) {
+        return caps.get(1).map(|m| m.as_str().to_string());
+    }
+    
+    None
+}
+
+/// Extract MinIO version
+pub fn extract_minio_version(banner: &str) -> Option<String> {
+    // MinIO S3-compatible object storage
+    // Detectable via Server header or /minio/health/live endpoint
+    
+    let banner_lower = banner.to_lowercase();
+    
+    // Check Server header
+    if banner_lower.contains("minio") {
+        let re = Regex::new(r"(?i)minio/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)").ok()?;
+        if let Some(caps) = re.captures(banner) {
+            return caps.get(1).map(|m| format!("MinIO {}", m.as_str()));
+        }
+        
+        // Try standard version pattern
+        let re_ver = Regex::new(r"(?i)minio[/-]?(\d+\.\d+\.\d+)").ok()?;
+        if let Some(caps) = re_ver.captures(banner) {
+            return caps.get(1).map(|m| m.as_str().to_string());
+        }
+        
+        return Some("MinIO".to_string());
+    }
+    
+    // Check for S3-compatible headers that indicate MinIO
+    if banner_lower.contains("x-amz-") && banner_lower.contains("x-minio-") {
+        return Some("MinIO".to_string());
+    }
+    
+    None
+}
+
 /// Detect web application/CMS from HTTP response
 pub fn detect_web_application(banner: &str, body: Option<&str>) -> Vec<String> {
     let mut detected = Vec::new();
@@ -399,9 +626,17 @@ pub fn extract_service_version(service: &str, banner: &str) -> Option<String> {
         "redis" => extract_redis_version(banner),
         "memcached" | "memcache" => extract_memcached_version(banner),
         "rabbitmq" | "amqp" => extract_rabbitmq_version(banner),
+        "activemq" => extract_activemq_version(banner),
+        "zookeeper" => extract_zookeeper_version(banner),
+        "minio" => extract_minio_version(banner),
         // JSON-based services need special handling in the caller
-        "elasticsearch" | "couchdb" | "docker" | "kubernetes" | "etcd" => {
+        "elasticsearch" | "couchdb" | "docker" | "kubernetes" | "etcd" | "consul" | "vault" | "solr" => {
             // These return None here, will be handled by HTTP fingerprinting
+            None
+        }
+        // Binary protocol services need byte array handling in caller
+        "kafka" | "mqtt" | "cassandra" => {
+            // These need binary protocol handling
             None
         }
         _ => None,
@@ -1135,5 +1370,321 @@ mod tests {
     fn test_extract_service_version_rabbitmq() {
         let banner = r#"{"rabbitmq_version":"3.11.5"}"#;
         assert_eq!(extract_service_version("rabbitmq", banner), Some("3.11.5".to_string()));
+    }
+    
+    // ========================================
+    // Kafka Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_kafka_version_standard() {
+        let response = b"kafka_2.13-3.5.0";
+        assert_eq!(extract_kafka_version(response), Some("3.5.0".to_string()));
+    }
+    
+    #[test]
+    fn test_kafka_version_numeric() {
+        let response = b"broker metadata 3.4.0 cluster";
+        assert_eq!(extract_kafka_version(response), Some("3.4.0".to_string()));
+    }
+    
+    #[test]
+    fn test_kafka_version_2x() {
+        let response = b"Apache Kafka 2.8.1";
+        assert_eq!(extract_kafka_version(response), Some("2.8.1".to_string()));
+    }
+    
+    #[test]
+    fn test_kafka_version_not_found() {
+        let response = b"invalid";
+        assert_eq!(extract_kafka_version(response), None);
+    }
+    
+    // ========================================
+    // MQTT Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_mqtt_version_5_0() {
+        // CONNACK for MQTT 5.0 with properties
+        let response = &[0x20, 0x03, 0x00, 0x00, 0x05];
+        assert_eq!(extract_mqtt_version(response), Some("5.0".to_string()));
+    }
+    
+    #[test]
+    fn test_mqtt_version_3_1_1() {
+        // CONNACK for MQTT 3.1.1 (standard)
+        let response = &[0x20, 0x02, 0x00, 0x00];
+        assert_eq!(extract_mqtt_version(response), Some("3.1.1".to_string()));
+    }
+    
+    #[test]
+    fn test_mqtt_version_3_1() {
+        // CONNACK for MQTT 3.1 (older)
+        let response = &[0x20, 0x03, 0x01, 0x00];
+        assert_eq!(extract_mqtt_version(response), Some("3.1".to_string()));
+    }
+    
+    #[test]
+    fn test_mqtt_version_invalid() {
+        let response = &[0x10, 0x00];
+        assert_eq!(extract_mqtt_version(response), None);
+    }
+    
+    // ========================================
+    // Cassandra Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_cassandra_version_supported() {
+        // Simulate SUPPORTED frame with version info
+        let mut response = vec![0x84, 0x00, 0x00, 0x00, 0x06];
+        response.extend_from_slice(b"CQL_VERSION3.4.5");
+        assert!(extract_cassandra_version(&response).is_some());
+    }
+    
+    #[test]
+    fn test_cassandra_version_protocol_v4() {
+        // Protocol v4 indicates Cassandra 3.x
+        let response = &[0x04, 0x00, 0x00, 0x00, 0x06, 0x00];
+        assert_eq!(extract_cassandra_version(response), Some("3.x".to_string()));
+    }
+    
+    #[test]
+    fn test_cassandra_version_protocol_v5() {
+        // Protocol v5 indicates Cassandra 4.x
+        let response = &[0x05, 0x00, 0x00, 0x00, 0x06, 0x00];
+        assert_eq!(extract_cassandra_version(response), Some("4.x".to_string()));
+    }
+    
+    #[test]
+    fn test_cassandra_version_too_short() {
+        let response = &[0x04, 0x00];
+        assert_eq!(extract_cassandra_version(response), None);
+    }
+    
+    // ========================================
+    // ActiveMQ Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_activemq_version_standard() {
+        let banner = "ActiveMQ/5.17.3 OpenWire";
+        assert_eq!(extract_activemq_version(banner), Some("5.17.3".to_string()));
+    }
+    
+    #[test]
+    fn test_activemq_version_web_console() {
+        let banner = "HTTP/1.1 200 OK\r\nServer: Jetty\r\n8161";
+        assert_eq!(extract_activemq_version(banner), Some("ActiveMQ Web Console".to_string()));
+    }
+    
+    #[test]
+    fn test_activemq_version_unknown() {
+        let banner = "activemq broker running";
+        assert_eq!(extract_activemq_version(banner), Some("Unknown".to_string()));
+    }
+    
+    #[test]
+    fn test_activemq_not_found() {
+        let banner = "Apache Server";
+        assert_eq!(extract_activemq_version(banner), None);
+    }
+    
+    // ========================================
+    // Apache Solr Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_solr_version_standard() {
+        let json = r#"{"solr-spec-version":"9.3.0","lucene-spec-version":"9.7.0"}"#;
+        assert_eq!(extract_solr_version(json), Some("9.3.0".to_string()));
+    }
+    
+    #[test]
+    fn test_solr_version_underscore() {
+        let json = r#"{"solr_version":"8.11.2"}"#;
+        assert_eq!(extract_solr_version(json), Some("8.11.2".to_string()));
+    }
+    
+    #[test]
+    fn test_solr_version_lucene_fallback() {
+        let json = r#"{"lucene-spec-version":"9.7.0"}"#;
+        assert_eq!(extract_solr_version(json), Some("Lucene 9.7.0".to_string()));
+    }
+    
+    #[test]
+    fn test_solr_version_not_found() {
+        let json = r#"{"status":"ok"}"#;
+        assert_eq!(extract_solr_version(json), None);
+    }
+    
+    // ========================================
+    // Zookeeper Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_zookeeper_version_stat() {
+        let response = "Zookeeper version: 3.8.0-5a02a05eddb59aee6ac762f7ea82e92a68eb9c0f";
+        assert_eq!(extract_zookeeper_version(response), Some("3.8.0".to_string()));
+    }
+    
+    #[test]
+    fn test_zookeeper_version_envi() {
+        let response = "Environment:\nzookeeper.version=3.7.1\nhost.name=localhost";
+        assert_eq!(extract_zookeeper_version(response), Some("3.7.1".to_string()));
+    }
+    
+    #[test]
+    fn test_zookeeper_version_case_insensitive() {
+        let response = "ZOOKEEPER VERSION: 3.6.3";
+        assert_eq!(extract_zookeeper_version(response), Some("3.6.3".to_string()));
+    }
+    
+    #[test]
+    fn test_zookeeper_version_not_found() {
+        let response = "Server running";
+        assert_eq!(extract_zookeeper_version(response), None);
+    }
+    
+    // ========================================
+    // Consul Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_consul_version_standard() {
+        let json = r#"{"Config":{"Version":"1.16.2"}}"#;
+        assert_eq!(extract_consul_version(json), Some("1.16.2".to_string()));
+    }
+    
+    #[test]
+    fn test_consul_version_lowercase() {
+        let json = r#"{"version":"1.15.4"}"#;
+        assert_eq!(extract_consul_version(json), Some("1.15.4".to_string()));
+    }
+    
+    #[test]
+    fn test_consul_version_with_suffix() {
+        let json = r#"{"Version":"1.14.3-ent"}"#;
+        assert_eq!(extract_consul_version(json), Some("1.14.3".to_string()));
+    }
+    
+    #[test]
+    fn test_consul_version_consul_field() {
+        let json = r#"{"ConsulVersion":"1.13.1"}"#;
+        assert_eq!(extract_consul_version(json), Some("1.13.1".to_string()));
+    }
+    
+    #[test]
+    fn test_consul_version_not_found() {
+        let json = r#"{"status":"ok"}"#;
+        assert_eq!(extract_consul_version(json), None);
+    }
+    
+    // ========================================
+    // Vault Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_vault_version_standard() {
+        let json = r#"{"version":"1.15.0","cluster_name":"vault-cluster"}"#;
+        assert_eq!(extract_vault_version(json), Some("1.15.0".to_string()));
+    }
+    
+    #[test]
+    fn test_vault_version_with_suffix() {
+        let json = r#"{"version":"1.14.2-ent"}"#;
+        assert_eq!(extract_vault_version(json), Some("1.14.2".to_string()));
+    }
+    
+    #[test]
+    fn test_vault_version_health_endpoint() {
+        let json = r#"{"initialized":true,"sealed":false,"version":"1.13.5"}"#;
+        assert_eq!(extract_vault_version(json), Some("1.13.5".to_string()));
+    }
+    
+    #[test]
+    fn test_vault_version_not_found() {
+        let json = r#"{"sealed":true}"#;
+        assert_eq!(extract_vault_version(json), None);
+    }
+    
+    // ========================================
+    // MinIO Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_minio_version_timestamp() {
+        let banner = "HTTP/1.1 200 OK\r\nServer: MinIO/2024-01-18T22:51:28Z\r\n";
+        let result = extract_minio_version(banner);
+        assert!(result.is_some());
+        assert!(result.unwrap().contains("2024-01-18"));
+    }
+    
+    #[test]
+    fn test_minio_version_standard() {
+        let banner = "Server: MinIO/RELEASE.2023-12-20T01-00-02Z";
+        assert!(extract_minio_version(banner).is_some());
+    }
+    
+    #[test]
+    fn test_minio_version_numeric() {
+        let banner = "MinIO/0.20231220.010002";
+        assert!(extract_minio_version(banner).is_some());
+    }
+    
+    #[test]
+    fn test_minio_version_s3_headers() {
+        let banner = "HTTP/1.1 200 OK\r\nX-Amz-Request-Id: abc123\r\nX-Minio-Deployment-Id: xyz\r\n";
+        assert_eq!(extract_minio_version(banner), Some("MinIO".to_string()));
+    }
+    
+    #[test]
+    fn test_minio_version_not_found() {
+        let banner = "HTTP/1.1 200 OK\r\nServer: nginx\r\n";
+        assert_eq!(extract_minio_version(banner), None);
+    }
+    
+    // ========================================
+    // Integration Tests - All New Protocols
+    // ========================================
+    
+    #[test]
+    fn test_extract_service_version_activemq() {
+        let banner = "ActiveMQ/5.17.3";
+        assert_eq!(extract_service_version("activemq", banner), Some("5.17.3".to_string()));
+    }
+    
+    #[test]
+    fn test_extract_service_version_zookeeper() {
+        let banner = "Zookeeper version: 3.8.0-abc";
+        assert_eq!(extract_service_version("zookeeper", banner), Some("3.8.0".to_string()));
+    }
+    
+    #[test]
+    fn test_extract_service_version_minio() {
+        let banner = "Server: MinIO/2024-01-18T22:51:28Z";
+        assert!(extract_service_version("minio", banner).is_some());
+    }
+    
+    #[test]
+    fn test_extract_service_version_kafka_returns_none() {
+        // Kafka needs binary handling, should return None from string dispatcher
+        let banner = "kafka data";
+        assert_eq!(extract_service_version("kafka", banner), None);
+    }
+    
+    #[test]
+    fn test_extract_service_version_mqtt_returns_none() {
+        // MQTT needs binary handling
+        let banner = "mqtt data";
+        assert_eq!(extract_service_version("mqtt", banner), None);
+    }
+    
+    #[test]
+    fn test_extract_service_version_cassandra_returns_none() {
+        // Cassandra needs binary handling
+        let banner = "cassandra data";
+        assert_eq!(extract_service_version("cassandra", banner), None);
     }
 }
