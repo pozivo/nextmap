@@ -650,16 +650,40 @@ fn sanitize_banner(data: &[u8]) -> String {
 
 // Banner grabbing per identificazione servizi
 async fn grab_banner(stream: &mut TcpStream, port: u16, timeout: Duration) -> Option<String> {
-    let mut buffer = [0; 1024];
+    let mut buffer = [0; 4096]; // Aumentato per risposte più grandi
     
-    // Per alcuni servizi, dobbiamo inviare un comando
+    // Per alcuni servizi, dobbiamo inviare un comando/probe
     let probe = match port {
-        80 | 8080 => Some("GET / HTTP/1.0\r\n\r\n"),
-        21 => None, // FTP invia banner automaticamente
-        22 => None, // SSH invia banner automaticamente  
-        25 => None, // SMTP invia banner automaticamente
-        110 => None, // POP3 invia banner automaticamente
-        143 => None, // IMAP invia banner automaticamente
+        // HTTP
+        80 | 8080 => Some("GET / HTTP/1.0\r\nHost: localhost\r\n\r\n"),
+        
+        // FTP, SSH, SMTP inviano banner automaticamente
+        21 | 22 | 25 | 110 | 143 => None,
+        
+        // Redis - INFO command
+        6379 => Some("INFO\r\n"),
+        
+        // Memcached - VERSION command
+        11211 => Some("version\r\n"),
+        
+        // Zookeeper - stat command
+        2181 => Some("stat\n"),
+        
+        // MongoDB - simple query
+        27017 => Some("{ \"ping\": 1 }\r\n"),
+        
+        // Elasticsearch, Docker, Kubernetes, etcd, CouchDB, Solr, Consul, Vault - handled by enhanced_fingerprint via HTTP
+        9200 | 2375 | 2376 | 6443 | 2379 | 2380 | 5984 | 8983 | 8500 | 8200 => None,
+        
+        // RabbitMQ - AMQP handshake (management API handled by enhanced_fingerprint)
+        5672 => None,
+        
+        // Kafka, MQTT, Cassandra - binary protocols, handled by enhanced_fingerprint
+        9092 | 1883 | 8883 | 9042 => None,
+        
+        // HTTP alternatives
+        8000..=8999 => Some("GET / HTTP/1.0\r\nHost: localhost\r\n\r\n"),
+        
         _ => None,
     };
     
@@ -676,20 +700,248 @@ async fn grab_banner(stream: &mut TcpStream, port: u16, timeout: Duration) -> Op
             // Sanitize the banner to remove non-printable characters
             let cleaned = sanitize_banner(&buffer[..n]);
             
-            // Take the first non-empty line
-            let first_line = cleaned.lines()
-                .find(|line| !line.trim().is_empty())?
-                .trim()
-                .to_string();
+            // Take the first non-empty line or full response for JSON/structured data
+            let response = cleaned.trim().to_string();
             
-            if !first_line.is_empty() {
-                Some(first_line)
+            if !response.is_empty() {
+                Some(response)
             } else {
                 None
             }
         }
         _ => None,
     }
+}
+
+// HTTP probe per servizi JSON-based (Elasticsearch, Docker, Kubernetes, etc.)
+async fn probe_http_service(target: &str, port: u16, endpoint: &str, timeout: Duration) -> Option<String> {
+    let socket_addr = format!("{}:{}", target, port);
+    
+    match tokio::time::timeout(timeout, TcpStream::connect(&socket_addr)).await {
+        Ok(Ok(mut stream)) => {
+            // Costruisci richiesta HTTP GET
+            let request = format!(
+                "GET {} HTTP/1.1\r\nHost: {}:{}\r\nUser-Agent: NextMap/0.3.1\r\nConnection: close\r\n\r\n",
+                endpoint, target, port
+            );
+            
+            if stream.write_all(request.as_bytes()).await.is_err() {
+                return None;
+            }
+            
+            let mut buffer = Vec::new();
+            match tokio::time::timeout(timeout, stream.read_to_end(&mut buffer)).await {
+                Ok(Ok(_)) if !buffer.is_empty() => {
+                    // Converti in stringa
+                    let response = String::from_utf8_lossy(&buffer);
+                    
+                    // Estrai solo il body (dopo le header HTTP)
+                    if let Some(body_start) = response.find("\r\n\r\n") {
+                        let body = &response[body_start + 4..];
+                        if !body.is_empty() {
+                            return Some(body.to_string());
+                        }
+                    }
+                    
+                    None
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+// Probe binario per servizi come Redis, Memcached
+async fn probe_text_protocol(target: &str, port: u16, command: &str, timeout: Duration) -> Option<String> {
+    let socket_addr = format!("{}:{}", target, port);
+    
+    match tokio::time::timeout(timeout, TcpStream::connect(&socket_addr)).await {
+        Ok(Ok(mut stream)) => {
+            // Invia comando
+            if stream.write_all(command.as_bytes()).await.is_err() {
+                return None;
+            }
+            
+            let mut buffer = [0; 4096];
+            match tokio::time::timeout(timeout, stream.read(&mut buffer)).await {
+                Ok(Ok(n)) if n > 0 => {
+                    Some(String::from_utf8_lossy(&buffer[..n]).to_string())
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+// Probe binario per protocolli come Kafka, MQTT, Cassandra
+async fn probe_binary_protocol(target: &str, port: u16, probe_data: &[u8], timeout: Duration) -> Option<Vec<u8>> {
+    let socket_addr = format!("{}:{}", target, port);
+    
+    match tokio::time::timeout(timeout, TcpStream::connect(&socket_addr)).await {
+        Ok(Ok(mut stream)) => {
+            // Invia probe
+            if stream.write_all(probe_data).await.is_err() {
+                return None;
+            }
+            
+            let mut buffer = vec![0; 1024];
+            match tokio::time::timeout(timeout, stream.read(&mut buffer)).await {
+                Ok(Ok(n)) if n > 0 => {
+                    buffer.truncate(n);
+                    Some(buffer)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+// Enhanced fingerprinting con supporto per tutti i 20+ protocolli
+async fn enhanced_fingerprint(target: &str, port: u16, service_name: &str, banner: Option<&str>, timeout: Duration) -> Option<String> {
+    match service_name {
+        // Redis - INFO command
+        "redis" if banner.is_none() => {
+            if let Some(response) = probe_text_protocol(target, port, "INFO\r\n", timeout).await {
+                return fingerprint::extract_redis_version(&response);
+            }
+        }
+        
+        // Memcached - VERSION command  
+        "memcached" | "memcache" if banner.is_none() => {
+            if let Some(response) = probe_text_protocol(target, port, "version\r\n", timeout).await {
+                return fingerprint::extract_memcached_version(&response);
+            }
+        }
+        
+        // Zookeeper - stat command
+        "zookeeper" if banner.is_none() => {
+            if let Some(response) = probe_text_protocol(target, port, "stat\n", timeout).await {
+                return fingerprint::extract_zookeeper_version(&response);
+            }
+        }
+        
+        // Elasticsearch - cluster health API
+        "elasticsearch" => {
+            if let Some(json) = probe_http_service(target, port, "/_cluster/health", timeout).await {
+                if let Some((version, cluster)) = fingerprint::extract_elasticsearch_info(&json) {
+                    return Some(format!("{} (cluster: {})", version, cluster));
+                }
+            }
+        }
+        
+        // Docker API - /version endpoint
+        "docker" => {
+            if let Some(json) = probe_http_service(target, port, "/version", timeout).await {
+                if let Some((version, api_ver)) = fingerprint::extract_docker_version(&json) {
+                    return Some(format!("{} (API: {})", version, api_ver));
+                }
+            }
+        }
+        
+        // Kubernetes API - /version
+        "kubernetes" | "k8s" => {
+            if let Some(json) = probe_http_service(target, port, "/version", timeout).await {
+                return fingerprint::extract_kubernetes_version(&json);
+            }
+        }
+        
+        // etcd API - /version
+        "etcd" => {
+            if let Some(json) = probe_http_service(target, port, "/version", timeout).await {
+                return fingerprint::extract_etcd_version(&json);
+            }
+        }
+        
+        // CouchDB - root endpoint
+        "couchdb" => {
+            if let Some(json) = probe_http_service(target, port, "/", timeout).await {
+                return fingerprint::extract_couchdb_version(&json);
+            }
+        }
+        
+        // Apache Solr - admin info
+        "solr" => {
+            if let Some(json) = probe_http_service(target, port, "/solr/admin/info/system", timeout).await {
+                return fingerprint::extract_solr_version(&json);
+            }
+        }
+        
+        // HashiCorp Consul - agent API
+        "consul" => {
+            if let Some(json) = probe_http_service(target, port, "/v1/agent/self", timeout).await {
+                return fingerprint::extract_consul_version(&json);
+            }
+        }
+        
+        // HashiCorp Vault - health endpoint
+        "vault" => {
+            if let Some(json) = probe_http_service(target, port, "/v1/sys/health", timeout).await {
+                return fingerprint::extract_vault_version(&json);
+            }
+        }
+        
+        // Kafka - ApiVersions request (simplified)
+        "kafka" if banner.is_none() => {
+            // Kafka ApiVersions request (API key 18, version 0)
+            let probe: Vec<u8> = vec![
+                0x00, 0x00, 0x00, 0x12, // Request size
+                0x00, 0x12, // API key (ApiVersions = 18)
+                0x00, 0x00, // API version
+                0x00, 0x00, 0x00, 0x01, // Correlation ID
+                0x00, 0x08, // Client ID length
+                b'n', b'e', b'x', b't', b'm', b'a', b'p', b' ', // "nextmap "
+            ];
+            
+            if let Some(response) = probe_binary_protocol(target, port, &probe, timeout).await {
+                return fingerprint::extract_kafka_version(&response);
+            }
+        }
+        
+        // MQTT - CONNECT packet
+        "mqtt" if banner.is_none() => {
+            // MQTT CONNECT packet (simplified)
+            let connect_packet: Vec<u8> = vec![
+                0x10, 0x10, // CONNECT, remaining length
+                0x00, 0x04, b'M', b'Q', b'T', b'T', // Protocol name
+                0x04, // Protocol level (3.1.1)
+                0x02, // Connect flags (clean session)
+                0x00, 0x3c, // Keep alive (60 seconds)
+                0x00, 0x00, // Client ID length (empty)
+            ];
+            
+            if let Some(response) = probe_binary_protocol(target, port, &connect_packet, timeout).await {
+                return fingerprint::extract_mqtt_version(&response);
+            }
+        }
+        
+        // Cassandra - OPTIONS frame
+        "cassandra" if banner.is_none() => {
+            // Cassandra OPTIONS request (protocol v4)
+            let options_frame: Vec<u8> = vec![
+                0x04, // Version (v4)
+                0x00, // Flags
+                0x00, 0x01, // Stream ID
+                0x05, // Opcode (OPTIONS)
+                0x00, 0x00, 0x00, 0x00, // Body length
+            ];
+            
+            if let Some(response) = probe_binary_protocol(target, port, &options_frame, timeout).await {
+                return fingerprint::extract_cassandra_version(&response);
+            }
+        }
+        
+        _ => {}
+    }
+    
+    // Se abbiamo un banner, usa extract_service_version standard
+    if let Some(banner_str) = banner {
+        return fingerprint::extract_service_version(service_name, banner_str);
+    }
+    
+    None
 }
 
 // Mappatura di base dei servizi (senza banner grabbing)
@@ -827,43 +1079,71 @@ async fn map_basic_service(mut port: Port) -> (Port, Vec<Vulnerability>) {
     (port, vulns)
 }
 
-// Analizza le porte aperte e identifica i servizi
-async fn analyze_open_port(mut port: Port) -> (Port, Vec<Vulnerability>) {
+// Analizza le porte aperte e identifica i servizi con enhanced fingerprinting
+async fn analyze_open_port(mut port: Port, target: &str, timeout: Duration) -> (Port, Vec<Vulnerability>) {
     let mut vulns = Vec::new();
     
     if port.state == PortState::Open {
-        // Analisi banner avanzata con il nuovo modulo fingerprint
-        if let Some(ref banner) = port.banner {
-            // Determina il servizio dalla porta
-            let service_from_port = match port.port_id {
-                80 | 8080 => "http",
-                443 | 8443 => "https",
-                22 => "ssh",
-                21 => "ftp",
-                25 => "smtp",
-                3306 => "mysql",
-                5432 => "postgresql",
-                27017 => "mongodb",
-                _ => "unknown"
-            };
+        // Determina il servizio dalla porta
+        let service_from_port = match port.port_id {
+            80 | 8080 => "http",
+            443 => "https",
+            22 => "ssh",
+            21 => "ftp",
+            25 => "smtp",
+            3306 => "mysql",
+            5432 => "postgresql",
+            27017 => "mongodb",
+            6379 => "redis",
+            11211 => "memcached",
+            5672 | 15672 => "rabbitmq",
+            9200 => "elasticsearch",
+            5984 => "couchdb",
+            2375 | 2376 => "docker",
+            6443 => "kubernetes",
+            8443 => "https", // or kubernetes, need context
+            2379 | 2380 => "etcd",
+            9092 => "kafka",
+            1883 | 8883 => "mqtt",
+            9042 => "cassandra",
+            61616 => "activemq",
+            8983 => "solr",
+            2181 => "zookeeper",
+            8500 => "consul",
+            8200 => "vault",
+            9000 => "minio",
+            _ => "unknown"
+        };
+        
+        // Clone il servizio per evitare problemi di borrowing
+        let service = port.service_name.clone().unwrap_or_else(|| service_from_port.to_string());
+        
+        // ENHANCED FINGERPRINTING: Usa il nuovo sistema per tutti i protocolli
+        let banner_ref = port.banner.as_deref();
+        if let Some(version) = enhanced_fingerprint(target, port.port_id, &service, banner_ref, timeout).await {
+            // Imposta nome servizio se non già impostato
+            if port.service_name.is_none() {
+                port.service_name = Some(service.clone());
+            }
             
-            // Clone il servizio per evitare problemi di borrowing
-            let service = port.service_name.clone().unwrap_or_else(|| service_from_port.to_string());
+            port.service_version = Some(version.clone());
             
-            // Estrai versione precisa usando fingerprint avanzato
+            // Calcola confidence score se abbiamo un banner
+            if let Some(banner_str) = banner_ref {
+                let _confidence = fingerprint::get_version_confidence(banner_str, Some(&version));
+            }
+        } else if let Some(ref banner) = port.banner {
+            // Fallback al metodo standard se enhanced fingerprint non ha funzionato
             if let Some(version) = fingerprint::extract_service_version(&service, banner) {
-                // Imposta nome servizio se non già impostato
                 if port.service_name.is_none() {
                     port.service_name = Some(service.clone());
                 }
-                
                 port.service_version = Some(version.clone());
-                
-                // Calcola confidence score
-                let _confidence = fingerprint::get_version_confidence(banner, Some(&version));
             }
-            
-            // Rilevamento web application per HTTP/HTTPS
+        }
+        
+        // Rilevamento web application per HTTP/HTTPS
+        if let Some(ref banner) = port.banner {
             if service == "http" || service == "https" {
                 let web_apps = fingerprint::detect_web_application(banner, None);
                 if !web_apps.is_empty() {
@@ -1803,7 +2083,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 if result.state == PortState::Open {
                     if service_scan {
-                        analyze_open_port(result).await
+                        analyze_open_port(result, &ip_clone, timeout).await
                     } else {
                         // Mappatura base servizi anche senza service_scan
                         let (mut port, vulns) = map_basic_service(result).await;
@@ -1837,7 +2117,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     pb_clone.inc(1);
                     
                     if result.state == PortState::Open && service_scan {
-                        analyze_open_port(result).await
+                        analyze_open_port(result, &ip_clone, timeout).await
                     } else {
                         (result, Vec::new())
                     }
