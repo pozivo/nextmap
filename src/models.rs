@@ -41,6 +41,7 @@ pub enum DetectionMethod {
     EnhancedProbe,    // Probe HTTP/JSON API attivo
     VersionProbe,     // Probe specifico per versione
     PortMapping,      // Inferenza da porta standard
+    ActiveScan,       // Active vulnerability scanning (Nuclei)
     Unknown,          // Metodo non determinato
 }
 
@@ -378,6 +379,7 @@ impl DetectionMethod {
             DetectionMethod::EnhancedProbe => "Enhanced Probe",
             DetectionMethod::VersionProbe => "Version Probe",
             DetectionMethod::PortMapping => "Port Mapping",
+            DetectionMethod::ActiveScan => "Active Scan (Nuclei)",
             DetectionMethod::Unknown => "Unknown",
         }
     }

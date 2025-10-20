@@ -16,6 +16,7 @@ mod models;
 mod stealth;
 mod cve;
 mod msf;  // Metasploit integration
+mod nuclei;  // Nuclei integration for active scanning
 mod fingerprint;
 mod output;
 mod banner;
@@ -26,6 +27,7 @@ use models::*;
 use stealth::*;
 use cve::*;
 use msf::*;  // Metasploit integration
+use nuclei::*;  // Nuclei integration
 use fingerprint::*;
 use banner::*;
 #[cfg(feature = "network-discovery")]
@@ -126,6 +128,34 @@ struct Args {
     /// Custom Metasploit path (auto-detected by default)
     #[arg(long)]
     msf_path: Option<String>,
+
+    /// Enable Nuclei active vulnerability scanning (requires nuclei installed)
+    #[arg(long, default_value_t = false)]
+    nuclei_scan: bool,
+
+    /// Path to nuclei binary (auto-detected by default)
+    #[arg(long)]
+    nuclei_path: Option<String>,
+
+    /// Nuclei severity filter (comma-separated: critical,high,medium,low,info)
+    #[arg(long, default_value = "critical,high")]
+    nuclei_severity: String,
+
+    /// Nuclei tags filter (comma-separated: cve,rce,sqli,xss,etc)
+    #[arg(long)]
+    nuclei_tags: Option<String>,
+
+    /// Nuclei rate limit (requests per second)
+    #[arg(long, default_value_t = 150)]
+    nuclei_rate_limit: usize,
+
+    /// Update Nuclei templates before scanning
+    #[arg(long, default_value_t = false)]
+    nuclei_update: bool,
+
+    /// Nuclei verbose output
+    #[arg(long, default_value_t = false)]
+    nuclei_verbose: bool,
 
     #[cfg(feature = "network-discovery")]
     /// Enable network discovery mode (ARP scan, ping sweep, neighbor discovery)
@@ -1110,6 +1140,53 @@ async fn map_basic_service(mut port: Port) -> (Port, Vec<Vulnerability>) {
                 
                 port.service_name = Some(service.to_string());
                 port.service_version = Some(version.to_string());
+            }
+        }
+    }
+    
+    (port, vulns)
+}
+
+// Analizza le porte aperte con supporto opzionale Nuclei
+async fn analyze_open_port_with_nuclei(
+    mut port: Port, 
+    target: &str, 
+    timeout: Duration,
+    nuclei_scanner: Option<&NucleiIntegration>,
+) -> (Port, Vec<Vulnerability>) {
+    // Prima esegui l'analisi standard
+    let (mut port, mut vulns) = analyze_open_port(port, target, timeout).await;
+    
+    // Se Nuclei è abilitato e la porta è HTTP/HTTPS, esegui scan attivo
+    if let Some(nuclei) = nuclei_scanner {
+        if port.port_id == 80 || port.port_id == 443 || port.port_id == 8080 || port.port_id == 8443 {
+            let service_name = port.service_name.clone();
+            let service_version = port.service_version.clone();
+            
+            match nuclei.scan_target(target, port.port_id, service_name.as_deref()).await {
+                Ok(nuclei_vulns) => {
+                    if !nuclei_vulns.is_empty() {
+                        println!("  🎯 Nuclei found {} vulnerabilities on {}:{}", 
+                            nuclei_vulns.len(), target, port.port_id);
+                        
+                        // Convert Nuclei vulnerabilities to NextMap format
+                        for nv in nuclei_vulns {
+                            let nm_vuln = nuclei.to_nextmap_vulnerability(
+                                &nv, 
+                                service_name.clone(), 
+                                service_version.clone(),
+                                port.port_id,
+                            );
+                            vulns.push(nm_vuln);
+                        }
+                        
+                        // Mark port with ActiveScan detection method
+                        port.detection_method = Some(DetectionMethod::ActiveScan);
+                    }
+                },
+                Err(e) => {
+                    eprintln!("⚠️  Nuclei scan failed for {}:{} - {}", target, port.port_id, e);
+                }
             }
         }
     }
@@ -2107,6 +2184,96 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("📊 CVE Database: {} total vulnerabilities", stats.total_cves);
         }
         Some(db)
+    } else {
+        None
+    };
+    
+    // Nuclei Scanner initialization
+    let nuclei_scanner = if args.nuclei_scan {
+        if use_stderr {
+            eprintln!("🎯 Initializing Nuclei scanner...");
+        } else {
+            println!("🎯 Initializing Nuclei scanner...");
+        }
+        
+        let severity_filter: Vec<String> = args.nuclei_severity
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect();
+        
+        let tags_filter: Vec<String> = args.nuclei_tags
+            .as_ref()
+            .map(|tags| tags.split(',').map(|s| s.trim().to_string()).collect())
+            .unwrap_or_default();
+        
+        match NucleiIntegration::with_config(
+            args.nuclei_path.clone(),
+            severity_filter,
+            tags_filter,
+            args.nuclei_rate_limit,
+        ) {
+            Ok(mut nuclei) => {
+                nuclei.verbose = args.nuclei_verbose;
+                
+                // Verify installation
+                match nuclei.verify_installation() {
+                    Ok(version) => {
+                        if use_stderr {
+                            eprintln!("✅ {}", version);
+                        } else {
+                            println!("✅ {}", version);
+                        }
+                    },
+                    Err(e) => {
+                        if use_stderr {
+                            eprintln!("⚠️  Nuclei verification failed: {}", e);
+                        } else {
+                            println!("⚠️  Nuclei verification failed: {}", e);
+                        }
+                    }
+                }
+                
+                // Update templates if requested
+                if args.nuclei_update {
+                    if use_stderr {
+                        eprintln!("📡 Updating Nuclei templates...");
+                    } else {
+                        println!("📡 Updating Nuclei templates...");
+                    }
+                    
+                    match nuclei.update_templates().await {
+                        Ok(_) => {
+                            if use_stderr {
+                                eprintln!("✅ Nuclei templates updated successfully");
+                            } else {
+                                println!("✅ Nuclei templates updated successfully");
+                            }
+                        },
+                        Err(e) => {
+                            if use_stderr {
+                                eprintln!("⚠️  Template update failed: {} (using cached templates)", e);
+                            } else {
+                                println!("⚠️  Template update failed: {} (using cached templates)", e);
+                            }
+                        }
+                    }
+                }
+                
+                Some(nuclei)
+            },
+            Err(e) => {
+                if use_stderr {
+                    eprintln!("⚠️  Nuclei initialization failed: {}", e);
+                    eprintln!("   Install from: https://github.com/projectdiscovery/nuclei");
+                    eprintln!("   Continuing without Nuclei scanning...");
+                } else {
+                    println!("⚠️  Nuclei initialization failed: {}", e);
+                    println!("   Install from: https://github.com/projectdiscovery/nuclei");
+                    println!("   Continuing without Nuclei scanning...");
+                }
+                None
+            }
+        }
     } else {
         None
     };

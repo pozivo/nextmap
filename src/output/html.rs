@@ -20,6 +20,9 @@ pub fn generate_html_report(scan_results: &ScanResult) -> String {
     // Risk summary cards
     html.push_str(&risk_summary_cards(&stats));
     
+    // Detection methods summary (if Nuclei or multiple methods used)
+    html.push_str(&detection_methods_summary(&stats));
+    
     // Grouped services table
     html.push_str(&services_by_category_table(scan_results));
     
@@ -44,6 +47,7 @@ struct ScanStatistics {
     low_risk: usize,
     total_cves: usize,
     categories: HashMap<String, usize>,
+    detection_methods: HashMap<String, usize>,
 }
 
 fn calculate_statistics(scan_results: &ScanResult) -> ScanStatistics {
@@ -58,6 +62,7 @@ fn calculate_statistics(scan_results: &ScanResult) -> ScanStatistics {
         low_risk: 0,
         total_cves: 0,
         categories: HashMap::new(),
+        detection_methods: HashMap::new(),
     };
     
     for host in &scan_results.hosts {
@@ -92,6 +97,12 @@ fn calculate_statistics(scan_results: &ScanResult) -> ScanStatistics {
             if let Some(ref category) = port.service_category {
                 let cat_name = category.display_name().to_string();
                 *stats.categories.entry(cat_name).or_insert(0) += 1;
+            }
+            
+            // Count by detection method
+            if let Some(ref method) = port.detection_method {
+                let method_name = method.display_name().to_string();
+                *stats.detection_methods.entry(method_name).or_insert(0) += 1;
             }
         }
         
@@ -286,6 +297,12 @@ fn html_header() -> String {
         .badge-closed { background: #6c757d; color: white; }
         .badge-filtered { background: #ffc107; color: #333; }
         
+        /* Detection Method badges */
+        .badge-detection-active { background: #9c27b0; color: white; font-weight: bold; }
+        .badge-detection-passive { background: #2196f3; color: white; }
+        .badge-detection-enhanced { background: #00bcd4; color: white; }
+        .badge-detection-default { background: #607d8b; color: white; }
+        
         .vuln-list {
             background: #fff3cd;
             border-left: 4px solid #ffc107;
@@ -397,6 +414,43 @@ fn risk_summary_cards(stats: &ScanStatistics) -> String {
     )
 }
 
+fn detection_methods_summary(stats: &ScanStatistics) -> String {
+    if stats.detection_methods.is_empty() {
+        return String::new();
+    }
+    
+    let mut html = String::from(r#"        <div class="section">
+            <h3>🔬 Detection Methods Distribution</h3>
+            <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-top: 15px;">
+"#);
+    
+    // Define method order and styling
+    let method_order = [
+        ("Active Scan (Nuclei)", "🎯", "badge-detection-active"),
+        ("Enhanced Probe", "🔬", "badge-detection-enhanced"),
+        ("Banner", "👁️", "badge-detection-passive"),
+        ("Version Probe", "👁️", "badge-detection-passive"),
+        ("Port Mapping", "🗺️", "badge-detection-passive"),
+    ];
+    
+    for (method_name, icon, badge_class) in &method_order {
+        if let Some(&count) = stats.detection_methods.get(*method_name) {
+            html.push_str(&format!(r#"                <div class="stat-card">
+                    <div class="badge {}" style="display: block; margin-bottom: 10px;">{} {}</div>
+                    <div class="value" style="font-size: 2em;">{}</div>
+                    <h3 style="margin-top: 5px;">Detections</h3>
+                </div>
+"#, badge_class, icon, method_name, count));
+        }
+    }
+    
+    html.push_str(r#"            </div>
+        </div>
+"#);
+    
+    html
+}
+
 fn services_by_category_table(scan_results: &ScanResult) -> String {
     let mut html = String::from(r#"        <div class="section">
             <h2>🎯 Services by Category</h2>
@@ -456,9 +510,19 @@ fn services_by_category_table(scan_results: &ScanResult) -> String {
                 ))
                 .unwrap_or_else(|| "<span class=\"badge badge-info\">Unknown</span>".to_string());
             
-            let detection = port.detection_method.as_ref()
-                .map(|d| d.display_name())
-                .unwrap_or("Unknown");
+            // Detection method with color-coded badge
+            let detection_badge = port.detection_method.as_ref()
+                .map(|d| {
+                    let (badge_class, icon) = match d {
+                        DetectionMethod::ActiveScan => ("badge-detection-active", "🎯"),
+                        DetectionMethod::EnhancedProbe => ("badge-detection-enhanced", "🔬"),
+                        DetectionMethod::VersionProbe | DetectionMethod::Banner => ("badge-detection-passive", "👁️"),
+                        DetectionMethod::PortMapping => ("badge-detection-passive", "🗺️"),
+                        DetectionMethod::Unknown => ("badge-detection-default", "❓"),
+                    };
+                    format!("<span class=\"badge {}\">{} {}</span>", badge_class, icon, d.display_name())
+                })
+                .unwrap_or_else(|| "<span class=\"badge badge-detection-default\">❓ Unknown</span>".to_string());
             
             html.push_str(&format!(r#"                        <tr>
                             <td><code>{}</code></td>
@@ -475,7 +539,7 @@ fn services_by_category_table(scan_results: &ScanResult) -> String {
                 port.service_name.as_deref().unwrap_or("unknown"),
                 port.service_version.as_deref().unwrap_or("N/A"),
                 risk_badge,
-                detection,
+                detection_badge,
                 port.cve_count.unwrap_or(0)
             ));
         }
