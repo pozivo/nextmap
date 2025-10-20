@@ -17,6 +17,7 @@ mod stealth;
 mod cve;
 mod fingerprint;
 mod output;
+mod banner;
 #[cfg(feature = "network-discovery")]
 mod discovery;
 
@@ -24,6 +25,7 @@ use models::*;
 use stealth::*;
 use cve::*;
 use fingerprint::*;
+use banner::*;
 #[cfg(feature = "network-discovery")]
 use discovery::*;
 
@@ -1942,6 +1944,12 @@ fn get_timing_config(template: &str) -> (u64, usize, u64) {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
+    
+    // Display banner for human-readable output (unless suppressed by structured formats or file output)
+    let show_banner = args.output_format == "human" && args.output_file.is_none();
+    if show_banner {
+        banner::print_banner(env!("CARGO_PKG_VERSION"));
+    }
     
     // Network Discovery Mode (only available with feature flag)
     #[cfg(feature = "network-discovery")]

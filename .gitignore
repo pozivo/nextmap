@@ -1,1 +1,36 @@
+# Rust build artifacts
 /target
+Cargo.lock
+
+# Release artifacts (GitHub Actions handles releases)
+/release-windows/
+/releases/
+nextmap-v*.zip
+
+# Test outputs
+/csv/
+/json/
+/test_results/
+/test_results_comprehensive/
+test*.json
+test*.csv
+test*.html
+test*.txt
+manual_test.*
+
+# CVE Database
+nextmap_cve.db
+*.db-shm
+*.db-wal
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+desktop.ini
