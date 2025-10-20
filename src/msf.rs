@@ -179,16 +179,288 @@ impl MetasploitClient {
             vec![
                 MetasploitExploit {
                     module_path: "exploit/multi/http/log4shell_header_injection".to_string(),
-                    name: "Log4Shell JNDI Injection RCE".to_string(),
+                    name: "Log4Shell Apache Log4j RCE".to_string(),
                     rank: "Excellent".to_string(),
                     cve_ids: vec!["CVE-2021-44228".to_string()],
-                    targets: vec!["Apache Log4j 2.0-2.14.1".to_string()],
+                    targets: vec!["Apache Log4j 2.0-2.15.0".to_string()],
                     required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
                 }
             ]
         );
 
-        println!("✅ Loaded {} CVE-to-MSF exploit mappings", self.exploit_database.len());
+        // ===== NUOVI EXPLOIT AGGIUNTI (v0.3.3+) =====
+
+        // CVE-2024-3400 (Palo Alto Networks PAN-OS Command Injection)
+        self.exploit_database.insert(
+            "CVE-2024-3400".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/linux/http/panos_arbitrary_file_read".to_string(),
+                    name: "Palo Alto Networks PAN-OS Command Injection".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2024-3400".to_string()],
+                    targets: vec!["PAN-OS 10.2".to_string(), "PAN-OS 11.0".to_string(), "PAN-OS 11.1".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2023-46604 (Apache ActiveMQ RCE)
+        self.exploit_database.insert(
+            "CVE-2023-46604".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/multi/misc/apache_activemq_rce_cve_2023_46604".to_string(),
+                    name: "Apache ActiveMQ OpenWire Deserialization RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2023-46604".to_string()],
+                    targets: vec!["ActiveMQ 5.18.0-5.18.2".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2023-4966 (Citrix Bleed - NetScaler ADC/Gateway Buffer Overflow)
+        self.exploit_database.insert(
+            "CVE-2023-4966".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "auxiliary/gather/citrix_netscaler_adc_vpn_key_disclosure".to_string(),
+                    name: "Citrix NetScaler ADC/Gateway Session Token Disclosure".to_string(),
+                    rank: "Normal".to_string(),
+                    cve_ids: vec!["CVE-2023-4966".to_string()],
+                    targets: vec!["NetScaler ADC".to_string(), "NetScaler Gateway".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2023-27350 (PaperCut NG/MF RCE)
+        self.exploit_database.insert(
+            "CVE-2023-27350".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/multi/http/papercut_ng_auth_bypass_rce".to_string(),
+                    name: "PaperCut NG/MF Authentication Bypass RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2023-27350".to_string()],
+                    targets: vec!["PaperCut NG 8.0-22.0.9".to_string(), "PaperCut MF 8.0-22.0.9".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2022-41040 + CVE-2022-41082 (ProxyNotShell - Microsoft Exchange)
+        self.exploit_database.insert(
+            "CVE-2022-41040".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/windows/http/exchange_proxynotshell_rce".to_string(),
+                    name: "Microsoft Exchange ProxyNotShell RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2022-41040".to_string(), "CVE-2022-41082".to_string()],
+                    targets: vec!["Exchange Server 2013-2019".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string(), "EMAIL".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2022-26134 (Atlassian Confluence OGNL Injection)
+        self.exploit_database.insert(
+            "CVE-2022-26134".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/linux/http/atlassian_confluence_ognl_injection".to_string(),
+                    name: "Atlassian Confluence OGNL Injection RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2022-26134".to_string()],
+                    targets: vec!["Confluence Server".to_string(), "Confluence Data Center".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2022-22965 (Spring4Shell - Spring Framework RCE)
+        self.exploit_database.insert(
+            "CVE-2022-22965".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/multi/http/spring_framework_rce_spring4shell".to_string(),
+                    name: "Spring Framework Class Property RCE (Spring4Shell)".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2022-22965".to_string()],
+                    targets: vec!["Spring Framework 5.3.0-5.3.17".to_string(), "Spring Framework 5.2.0-5.2.19".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2021-34473 (Microsoft Exchange ProxyShell)
+        self.exploit_database.insert(
+            "CVE-2021-34473".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/windows/http/exchange_proxyshell_rce".to_string(),
+                    name: "Microsoft Exchange ProxyShell RCE Chain".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2021-34473".to_string(), "CVE-2021-34523".to_string(), "CVE-2021-31207".to_string()],
+                    targets: vec!["Exchange Server 2013-2019".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string(), "EMAIL".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2021-26855 (Microsoft Exchange ProxyLogon)
+        self.exploit_database.insert(
+            "CVE-2021-26855".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/windows/http/exchange_proxylogon_rce".to_string(),
+                    name: "Microsoft Exchange ProxyLogon RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2021-26855".to_string()],
+                    targets: vec!["Exchange Server 2013-2019".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string(), "EMAIL".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2020-1472 (Zerologon - Windows Netlogon Privilege Escalation)
+        self.exploit_database.insert(
+            "CVE-2020-1472".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "auxiliary/admin/dcerpc/cve_2020_1472_zerologon".to_string(),
+                    name: "Zerologon Windows Netlogon Privilege Escalation".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2020-1472".to_string()],
+                    targets: vec!["Windows Server 2008-2019".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "NBNAME".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2019-19781 (Citrix ADC/Gateway Path Traversal)
+        self.exploit_database.insert(
+            "CVE-2019-19781".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/linux/http/citrix_adc_vpn_traversal".to_string(),
+                    name: "Citrix ADC/Gateway Directory Traversal RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2019-19781".to_string()],
+                    targets: vec!["Citrix ADC".to_string(), "Citrix Gateway".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2018-13379 (Fortinet FortiOS SSL VPN Path Traversal)
+        self.exploit_database.insert(
+            "CVE-2018-13379".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "auxiliary/gather/fortinet_ssl_vpn_traversal".to_string(),
+                    name: "Fortinet FortiOS SSL VPN Credentials Disclosure".to_string(),
+                    rank: "Normal".to_string(),
+                    cve_ids: vec!["CVE-2018-13379".to_string()],
+                    targets: vec!["FortiOS 5.4.6-6.0.4".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2018-7600 (Drupalgeddon2 - Drupal RCE)
+        self.exploit_database.insert(
+            "CVE-2018-7600".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/unix/webapp/drupal_drupalgeddon2".to_string(),
+                    name: "Drupal Drupalgeddon 2 Forms API RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2018-7600".to_string()],
+                    targets: vec!["Drupal 7.x-8.5.0".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2017-5638 (Apache Struts2 RCE)
+        self.exploit_database.insert(
+            "CVE-2017-5638".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/multi/http/struts2_content_type_ognl".to_string(),
+                    name: "Apache Struts2 Jakarta Multipart Parser OGNL RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2017-5638".to_string()],
+                    targets: vec!["Struts 2.3.5-2.3.31".to_string(), "Struts 2.5-2.5.10".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2017-0199 (Microsoft Office/WordPad RCE)
+        self.exploit_database.insert(
+            "CVE-2017-0199".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/windows/fileformat/office_word_hta".to_string(),
+                    name: "Microsoft Office Word Malicious HTA Execution".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2017-0199".to_string()],
+                    targets: vec!["Microsoft Office 2007-2016".to_string()],
+                    required_options: vec!["SRVHOST".to_string(), "SRVPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2014-6271 (Shellshock - Bash RCE)
+        self.exploit_database.insert(
+            "CVE-2014-6271".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/multi/http/apache_mod_cgi_bash_env_exec".to_string(),
+                    name: "Shellshock Apache mod_cgi Bash Environment Variable RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2014-6271".to_string()],
+                    targets: vec!["Apache with mod_cgi".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string(), "TARGETURI".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2012-1823 (PHP CGI Argument Injection)
+        self.exploit_database.insert(
+            "CVE-2012-1823".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/multi/http/php_cgi_arg_injection".to_string(),
+                    name: "PHP CGI Argument Injection RCE".to_string(),
+                    rank: "Excellent".to_string(),
+                    cve_ids: vec!["CVE-2012-1823".to_string()],
+                    targets: vec!["PHP 5.3.x".to_string(), "PHP 5.4.x".to_string()],
+                    required_options: vec!["RHOSTS".to_string(), "RPORT".to_string()],
+                }
+            ]
+        );
+
+        // CVE-2008-4250 (MS08-067 - Windows Server Service RCE)
+        self.exploit_database.insert(
+            "CVE-2008-4250".to_string(),
+            vec![
+                MetasploitExploit {
+                    module_path: "exploit/windows/smb/ms08_067_netapi".to_string(),
+                    name: "MS08-067 Microsoft Server Service RCE".to_string(),
+                    rank: "Great".to_string(),
+                    cve_ids: vec!["CVE-2008-4250".to_string()],
+                    targets: vec!["Windows XP SP2/SP3".to_string(), "Windows Server 2003 SP1/SP2".to_string()],
+                    required_options: vec!["RHOSTS".to_string()],
+                }
+            ]
+        );
+
+        println!("📊 Loaded {} CVE → MSF exploit mappings", self.exploit_database.len());
         Ok(())
     }
 
