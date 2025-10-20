@@ -132,6 +132,168 @@ pub fn extract_mongodb_version(banner: &str) -> Option<String> {
     None
 }
 
+/// Extract Redis version from INFO response
+pub fn extract_redis_version(banner: &str) -> Option<String> {
+    // Redis INFO command response: redis_version:7.0.12
+    if let Some(line) = banner.lines().find(|l| l.starts_with("redis_version:")) {
+        return line.split(':').nth(1).map(|v| v.trim().to_string());
+    }
+    
+    // Fallback: try to find version pattern
+    let re = Regex::new(r"redis_version:([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+/// Extract Memcached version
+pub fn extract_memcached_version(banner: &str) -> Option<String> {
+    // Memcached VERSION response: "VERSION 1.6.17"
+    if banner.starts_with("VERSION ") {
+        return Some(banner.trim_start_matches("VERSION ").trim().to_string());
+    }
+    
+    let re = Regex::new(r"VERSION\s+([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+/// Extract Elasticsearch version and cluster info
+pub fn extract_elasticsearch_info(json_response: &str) -> Option<(String, String)> {
+    // Parse JSON response from /_cluster/health or /
+    // Returns (version, cluster_name)
+    
+    // Simple JSON parsing for version
+    if let Some(version_start) = json_response.find(r#""number""#) {
+        let version_substr = &json_response[version_start..];
+        let re = Regex::new(r#""number"\s*:\s*"([\d\.]+)"#).ok()?;
+        if let Some(caps) = re.captures(version_substr) {
+            let version = caps.get(1).map(|m| m.as_str().to_string())?;
+            
+            // Try to extract cluster name
+            let cluster_name = if let Some(cluster_start) = json_response.find(r#""cluster_name""#) {
+                let cluster_substr = &json_response[cluster_start..];
+                let re_cluster = Regex::new(r#""cluster_name"\s*:\s*"([^"]+)"#).ok()?;
+                re_cluster.captures(cluster_substr)
+                    .and_then(|c| c.get(1))
+                    .map(|m| m.as_str().to_string())
+                    .unwrap_or_else(|| "unknown".to_string())
+            } else {
+                "unknown".to_string()
+            };
+            
+            return Some((version, cluster_name));
+        }
+    }
+    
+    None
+}
+
+/// Extract CouchDB version
+pub fn extract_couchdb_version(json_response: &str) -> Option<String> {
+    // CouchDB root response: {"couchdb":"Welcome","version":"3.3.2"}
+    let re = Regex::new(r#""version"\s*:\s*"([\d\.]+)"#).ok()?;
+    re.captures(json_response)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+/// Extract RabbitMQ version
+pub fn extract_rabbitmq_version(banner: &str) -> Option<String> {
+    // RabbitMQ AMQP banner or management API response
+    if banner.contains("RabbitMQ") {
+        let re = Regex::new(r"RabbitMQ\s+([\d\.]+)").ok()?;
+        return re.captures(banner)
+            .and_then(|caps| caps.get(1))
+            .map(|m| m.as_str().to_string());
+    }
+    
+    // JSON API response
+    let re = Regex::new(r#""rabbitmq_version"\s*:\s*"([\d\.]+)"#).ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+/// Extract Docker version
+pub fn extract_docker_version(json_response: &str) -> Option<(String, String)> {
+    // Docker /version API response
+    // Returns (Version, ApiVersion)
+    let re_version = Regex::new(r#""Version"\s*:\s*"([^"]+)"#).ok()?;
+    let re_api = Regex::new(r#""ApiVersion"\s*:\s*"([^"]+)"#).ok()?;
+    
+    let version = re_version.captures(json_response)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())?;
+    
+    let api_version = re_api.captures(json_response)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    
+    Some((version, api_version))
+}
+
+/// Extract Kubernetes version
+pub fn extract_kubernetes_version(json_response: &str) -> Option<String> {
+    // Kubernetes /version endpoint response
+    // {"major":"1","minor":"28","gitVersion":"v1.28.2"...}
+    let re = Regex::new(r#""gitVersion"\s*:\s*"([^"]+)"#).ok()?;
+    re.captures(json_response)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+/// Extract etcd version
+pub fn extract_etcd_version(json_response: &str) -> Option<String> {
+    // etcd /version response
+    let re = Regex::new(r#""etcdserver"\s*:\s*"([\d\.]+)"#).ok()?;
+    re.captures(json_response)
+        .and_then(|caps| caps.get(1))
+        .map(|m| m.as_str().to_string())
+}
+
+/// Detect Node.js/Express framework
+pub fn detect_nodejs_express(banner: &str) -> Option<String> {
+    let banner_lower = banner.to_lowercase();
+    
+    if banner_lower.contains("x-powered-by: express") {
+        // Try to extract version
+        let re = Regex::new(r"(?i)express/?([\d\.]+)?").ok()?;
+        if let Some(caps) = re.captures(banner) {
+            if let Some(version) = caps.get(1) {
+                return Some(format!("Express {}", version.as_str()));
+            }
+        }
+        return Some("Express".to_string());
+    }
+    
+    None
+}
+
+/// Detect Django framework
+pub fn detect_django(banner: &str) -> Option<String> {
+    let banner_lower = banner.to_lowercase();
+    
+    // Django debug page or specific headers
+    if banner_lower.contains("django") || banner_lower.contains("csrftoken") {
+        return Some("Django".to_string());
+    }
+    
+    None
+}
+
+/// Detect Spring Boot
+pub fn detect_spring_boot(banner: &str) -> Option<String> {
+    if banner.to_lowercase().contains("x-application-context") 
+        || banner.to_lowercase().contains("spring") {
+        return Some("Spring Boot".to_string());
+    }
+    
+    None
+}
+
 /// Detect web application/CMS from HTTP response
 pub fn detect_web_application(banner: &str, body: Option<&str>) -> Vec<String> {
     let mut detected = Vec::new();
@@ -227,13 +389,21 @@ pub fn extract_php_version(banner: &str) -> Option<String> {
 /// Comprehensive service version extraction
 pub fn extract_service_version(service: &str, banner: &str) -> Option<String> {
     match service {
-        "http" | "https" => extract_http_server_version(banner),
+        "http" | "https" | "http-proxy" | "http-alt" => extract_http_server_version(banner),
         "ssh" => extract_ssh_version(banner),
-        "ftp" => extract_ftp_version(banner),
-        "smtp" => extract_smtp_version(banner),
+        "ftp" | "ftps" => extract_ftp_version(banner),
+        "smtp" | "smtps" | "submission" => extract_smtp_version(banner),
         "mysql" => extract_mysql_version(banner),
-        "postgresql" => extract_postgresql_version(banner),
-        "mongodb" => extract_mongodb_version(banner),
+        "postgresql" | "postgres" => extract_postgresql_version(banner),
+        "mongodb" | "mongo" => extract_mongodb_version(banner),
+        "redis" => extract_redis_version(banner),
+        "memcached" | "memcache" => extract_memcached_version(banner),
+        "rabbitmq" | "amqp" => extract_rabbitmq_version(banner),
+        // JSON-based services need special handling in the caller
+        "elasticsearch" | "couchdb" | "docker" | "kubernetes" | "etcd" => {
+            // These return None here, will be handled by HTTP fingerprinting
+            None
+        }
         _ => None,
     }
 }
@@ -684,5 +854,286 @@ mod tests {
         let banner = "HTTP/1.1 200 OK\r\nServer: nginx/1.18.0\r\nServer: Apache/2.4\r\n";
         // Should get the first one
         assert_eq!(extract_http_server_version(banner), Some("nginx/1.18.0".to_string()));
+    }
+    
+    // ========================================
+    // Redis Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_redis_version_standard() {
+        let banner = "# Server\r\nredis_version:7.0.12\r\nredis_git_sha1:00000000\r\n";
+        assert_eq!(extract_redis_version(banner), Some("7.0.12".to_string()));
+    }
+    
+    #[test]
+    fn test_redis_version_5() {
+        let banner = "redis_version:5.0.14\r\nredis_mode:standalone\r\n";
+        assert_eq!(extract_redis_version(banner), Some("5.0.14".to_string()));
+    }
+    
+    #[test]
+    fn test_redis_version_not_found() {
+        let banner = "# Server\r\nuptime_in_seconds:3600\r\n";
+        assert_eq!(extract_redis_version(banner), None);
+    }
+    
+    // ========================================
+    // Memcached Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_memcached_version_standard() {
+        let banner = "VERSION 1.6.17";
+        assert_eq!(extract_memcached_version(banner), Some("1.6.17".to_string()));
+    }
+    
+    #[test]
+    fn test_memcached_version_1_4() {
+        let banner = "VERSION 1.4.33";
+        assert_eq!(extract_memcached_version(banner), Some("1.4.33".to_string()));
+    }
+    
+    #[test]
+    fn test_memcached_version_not_found() {
+        let banner = "ERROR unknown command";
+        assert_eq!(extract_memcached_version(banner), None);
+    }
+    
+    // ========================================
+    // Elasticsearch Info Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_elasticsearch_info_standard() {
+        let banner = r#"{"cluster_name":"production","status":"green","version":{"number":"8.8.0"}}"#;
+        let result = extract_elasticsearch_info(banner);
+        assert!(result.is_some());
+        let (version, cluster) = result.unwrap();
+        assert_eq!(version, "8.8.0");
+        assert_eq!(cluster, "production");
+    }
+    
+    #[test]
+    fn test_elasticsearch_info_no_cluster() {
+        let banner = r#"{"status":"yellow","version":{"number":"7.17.0"}}"#;
+        let result = extract_elasticsearch_info(banner);
+        assert!(result.is_some());
+        let (version, cluster) = result.unwrap();
+        assert_eq!(version, "7.17.0");
+        assert_eq!(cluster, "unknown");
+    }
+    
+    #[test]
+    fn test_elasticsearch_info_invalid_json() {
+        let banner = "Not a JSON response";
+        assert_eq!(extract_elasticsearch_info(banner), None);
+    }
+    
+    // ========================================
+    // CouchDB Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_couchdb_version_standard() {
+        let banner = r#"{"couchdb":"Welcome","version":"3.3.2","git_sha":"a1b2c3d"}"#;
+        assert_eq!(extract_couchdb_version(banner), Some("3.3.2".to_string()));
+    }
+    
+    #[test]
+    fn test_couchdb_version_2() {
+        let banner = r#"{"version":"2.3.1","vendor":{"name":"Apache CouchDB"}}"#;
+        assert_eq!(extract_couchdb_version(banner), Some("2.3.1".to_string()));
+    }
+    
+    #[test]
+    fn test_couchdb_version_invalid() {
+        let banner = r#"{"error":"unauthorized"}"#;
+        assert_eq!(extract_couchdb_version(banner), None);
+    }
+    
+    // ========================================
+    // RabbitMQ Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_rabbitmq_amqp_banner() {
+        let banner = "AMQP\0\x00\x09\x01RabbitMQ 3.11.5";
+        assert_eq!(extract_rabbitmq_version(banner), Some("3.11.5".to_string()));
+    }
+    
+    #[test]
+    fn test_rabbitmq_json_api() {
+        let banner = r#"{"rabbitmq_version":"3.9.13","erlang_version":"24.2"}"#;
+        assert_eq!(extract_rabbitmq_version(banner), Some("3.9.13".to_string()));
+    }
+    
+    #[test]
+    fn test_rabbitmq_not_found() {
+        let banner = "Invalid response";
+        assert_eq!(extract_rabbitmq_version(banner), None);
+    }
+    
+    // ========================================
+    // Docker Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_docker_version_standard() {
+        let banner = r#"{"Version":"24.0.5","ApiVersion":"1.43","Platform":{"Name":"Docker Engine"}}"#;
+        let result = extract_docker_version(banner);
+        assert!(result.is_some());
+        let (version, api) = result.unwrap();
+        assert_eq!(version, "24.0.5");
+        assert_eq!(api, "1.43");
+    }
+    
+    #[test]
+    fn test_docker_version_no_api() {
+        let banner = r#"{"Version":"20.10.21"}"#;
+        let result = extract_docker_version(banner);
+        assert!(result.is_some());
+        let (version, api) = result.unwrap();
+        assert_eq!(version, "20.10.21");
+        assert_eq!(api, "unknown");
+    }
+    
+    #[test]
+    fn test_docker_version_invalid() {
+        let banner = "Not JSON";
+        assert_eq!(extract_docker_version(banner), None);
+    }
+    
+    // ========================================
+    // Kubernetes Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_kubernetes_version_standard() {
+        let banner = r#"{"major":"1","minor":"27","gitVersion":"v1.27.3"}"#;
+        assert_eq!(extract_kubernetes_version(banner), Some("v1.27.3".to_string()));
+    }
+    
+    #[test]
+    fn test_kubernetes_version_1_25() {
+        let banner = r#"{"gitVersion":"v1.25.9","platform":"linux/amd64"}"#;
+        assert_eq!(extract_kubernetes_version(banner), Some("v1.25.9".to_string()));
+    }
+    
+    #[test]
+    fn test_kubernetes_version_invalid() {
+        let banner = r#"{"error":"forbidden"}"#;
+        assert_eq!(extract_kubernetes_version(banner), None);
+    }
+    
+    // ========================================
+    // etcd Version Extraction Tests
+    // ========================================
+    
+    #[test]
+    fn test_etcd_version_standard() {
+        let banner = r#"{"etcdserver":"3.5.9","etcdcluster":"3.5.0"}"#;
+        assert_eq!(extract_etcd_version(banner), Some("3.5.9".to_string()));
+    }
+    
+    #[test]
+    fn test_etcd_version_3_4() {
+        let banner = r#"{"etcdserver":"3.4.26","etcdcluster":"3.4.0"}"#;
+        assert_eq!(extract_etcd_version(banner), Some("3.4.26".to_string()));
+    }
+    
+    #[test]
+    fn test_etcd_version_invalid() {
+        let banner = "Invalid JSON";
+        assert_eq!(extract_etcd_version(banner), None);
+    }
+    
+    // ========================================
+    // Node.js/Express Detection Tests
+    // ========================================
+    
+    #[test]
+    fn test_detect_nodejs_express_standard() {
+        let banner = "HTTP/1.1 200 OK\r\nX-Powered-By: Express\r\n";
+        assert!(detect_nodejs_express(banner).is_some());
+        assert_eq!(detect_nodejs_express(banner), Some("Express".to_string()));
+    }
+    
+    #[test]
+    fn test_detect_nodejs_express_with_version() {
+        let banner = "HTTP/1.1 200 OK\r\nX-Powered-By: Express 4.18.2\r\n";
+        assert!(detect_nodejs_express(banner).is_some());
+    }
+    
+    #[test]
+    fn test_detect_nodejs_express_not_found() {
+        let banner = "HTTP/1.1 200 OK\r\nServer: nginx\r\n";
+        assert!(detect_nodejs_express(banner).is_none());
+    }
+    
+    // ========================================
+    // Django Detection Tests
+    // ========================================
+    
+    #[test]
+    fn test_detect_django_csrf_token() {
+        let banner = "HTTP/1.1 200 OK\r\nSet-Cookie: csrftoken=abc123; Path=/\r\n";
+        assert!(detect_django(banner).is_some());
+    }
+    
+    #[test]
+    fn test_detect_django_server_header() {
+        let banner = "HTTP/1.1 200 OK\r\nServer: WSGIServer/0.2 CPython/3.10.0\r\n";
+        assert!(detect_django(banner).is_some());
+    }
+    
+    #[test]
+    fn test_detect_django_not_found() {
+        let banner = "HTTP/1.1 200 OK\r\nServer: Apache\r\n";
+        assert!(detect_django(banner).is_none());
+    }
+    
+    // ========================================
+    // Spring Boot Detection Tests
+    // ========================================
+    
+    #[test]
+    fn test_detect_spring_boot_context() {
+        let banner = "HTTP/1.1 200 OK\r\nX-Application-Context: myapp:production:8080\r\n";
+        assert!(detect_spring_boot(banner).is_some());
+    }
+    
+    #[test]
+    fn test_detect_spring_boot_actuator() {
+        let banner = "HTTP/1.1 200 OK\r\nContent-Location: /actuator/health\r\n";
+        assert!(detect_spring_boot(banner).is_some());
+    }
+    
+    #[test]
+    fn test_detect_spring_boot_not_found() {
+        let banner = "HTTP/1.1 200 OK\r\nServer: Tomcat\r\n";
+        assert!(detect_spring_boot(banner).is_none());
+    }
+    
+    // ========================================
+    // Integration Tests - New Protocols
+    // ========================================
+    
+    #[test]
+    fn test_extract_service_version_redis() {
+        let banner = "redis_version:7.0.12\r\n";
+        assert_eq!(extract_service_version("redis", banner), Some("7.0.12".to_string()));
+    }
+    
+    #[test]
+    fn test_extract_service_version_memcached() {
+        let banner = "VERSION 1.6.17";
+        assert_eq!(extract_service_version("memcached", banner), Some("1.6.17".to_string()));
+    }
+    
+    #[test]
+    fn test_extract_service_version_rabbitmq() {
+        let banner = r#"{"rabbitmq_version":"3.11.5"}"#;
+        assert_eq!(extract_service_version("rabbitmq", banner), Some("3.11.5".to_string()));
     }
 }
