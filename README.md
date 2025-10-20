@@ -15,14 +15,22 @@
 
 NextMap is a modern, fast, and feature-rich network scanner built in Rust with advanced stealth capabilities and automatic CVE detection. Perfect for penetration testing, security assessments, and network reconnaissance.
 
-**🚀 NEW in v0.3.0**: Top5000 preset (4424 ports/sec), Smart port selection (Windows/Linux/Cloud/IoT), Enhanced Windows support, 3x faster targeted scanning
+**🚀 NEW in v0.3.1**: Professional ASCII Banner, Enhanced Output (12-column CSV, HTML reports), Fixed JSON File I/O, Repository Cleanup
 
 ```
-🔍 NextMap v0.3.0 - Advanced Network Scanner with Smart Port Selection
+ ███╗   ██╗███████╗██╗  ██╗████████╗███╗   ███╗ █████╗ ██████╗ 
+ ████╗  ██║██╔════╝╚██╗██╔╝╚══██╔══╝████╗ ████║██╔══██╗██╔══██╗
+ ██╔██╗ ██║█████╗   ╚███╔╝    ██║   ██╔████╔██║███████║██████╔╝
+ ██║╚██╗██║██╔══╝   ██╔██╗    ██║   ██║╚██╔╝██║██╔══██║██╔═══╝ 
+ ██║ ╚████║███████╗██╔╝ ██╗   ██║   ██║ ╚═╝ ██║██║  ██║██║     
+ ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝   ╚═╝   ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝     
+
+    🔍 Next Generation Network Scanner v0.3.1
+    Advanced Stealth • CVE Detection • Professional Output
 
 🥷 Stealth Scanning    🛡️ CVE Detection      ⚡ 4424 Ports/Second
 🎯 Version Detection   🔍 OS Fingerprinting  🚀 10x Faster than nmap
-📊 JSON/CSV Output     🌐 Smart Port Profiles ✅ Production Ready
+📊 Enhanced Output     🌐 Smart Port Profiles ✅ Production Ready
 🪟 Windows Optimized   🐧 Linux Optimized    ☁️ Cloud Ready
 
 $ nextmap scanme.nmap.org --smart-ports cloud -s -O --timing-template insane
@@ -54,28 +62,33 @@ $ nextmap scanme.nmap.org --smart-ports cloud -s -O --timing-template insane
 - **Offline Operation** - Local SQLite database for speed
 
 ### 🎯 **Advanced Features**
-- **Enhanced Version Detection** ⭐ NEW - HTTP servers, SSH, databases, web apps
-- **Smart Banner Sanitization** ⭐ NEW - Binary data detection, clean output
-- **Network Discovery** ⭐ NEW - ARP, ICMP, TCP SYN host discovery
+- **Professional Branding** ⭐ NEW - Colored ASCII banner with smart display
+- **Enhanced Output System** ⭐ NEW - 12-column CSV, HTML reports, service categorization
+- **Risk Assessment** ⭐ NEW - 5 levels (Critical/High/Medium/Low/Info) with color coding
+- **Detection Methods** ⭐ NEW - Banner, EnhancedProbe, VersionProbe, PortMapping
+- **Enhanced Version Detection** - HTTP servers, SSH, databases, web apps
+- **Smart Banner Sanitization** - Binary data detection, clean output
+- **Network Discovery** - ARP, ICMP, TCP SYN host discovery
 - **OS Detection** - Smart fingerprinting (85% Windows, 60% Linux accuracy)
 - **Service Detection** - 9 protocols with deep fingerprinting
-- **Multiple Output Formats** - Human-readable, JSON, CSV with perfect alignment
+- **Multiple Output Formats** - Human, JSON, CSV (12 cols), HTML, YAML, XML, Markdown
 - **Exceptional Performance** - 3846 ports/second in insane mode
 - **Timing Templates** - 6 modes from paranoid to insane
 - **Beautiful Output** - Colorized terminal with progress bars
 
-### 🏆 **v0.3.0 Highlights**
+### 🏆 **v0.3.1 Highlights (Latest)**
+- 🎨 **Professional ASCII Banner** - Colored branding with smart display logic
+- 📊 **Enhanced Output Formats** - 12-column CSV (was 8), HTML reports with risk cards
+- 🔧 **Fixed JSON File I/O** - File output now works correctly (was broken)
+- 🧹 **Repository Cleanup** - GitHub Actions exclusive, 22 files removed (904 lines)
+- ✅ **91.7% test coverage** - 11/12 comprehensive pre-release tests passed
+
+### 🏅 **v0.3.0 Highlights**
 - 🚀 **top5000 preset** - 5000 ports with 99.9% enterprise coverage (4424 ports/sec)
 - 🎯 **Smart port selection** - 4 intelligent profiles (Windows/Linux/Cloud/IoT)
 - 🪟 **Enhanced Windows support** - 10 critical ports added (WinRM, NetBIOS, DHCP, WSUS, AD)
 - ⚡ **3x faster targeted scanning** - smart-windows: 0.14s vs 0.35s for top1000
 - ✅ **Zero regression** - All existing features unchanged, fully backwards compatible
-
-### 🏅 **Previous v0.2.5 Highlights**
-- ⚡ **3846 ports/second** - 10-15x faster than nmap with full detection
-- 🎯 **Enhanced fingerprinting** - HTTP, SSH, MySQL, PostgreSQL, MongoDB, Web apps
-- 🧹 **Smart sanitization** - Binary data detection (70% threshold), no corrupted output
-- 📊 **Production ready** - 61 unit tests (100% passing), Grade A+ (99.2/100)
 
 > ⚠️ **Note**: NextMap v0.2.0+ scans **all ports (1-65535)** by default for comprehensive coverage. Use `--ports` to specify custom ranges for faster scans.
 
@@ -211,13 +224,19 @@ nextmap --target 8.8.8.8 --udp-scan -U
 nextmap --target example.com --ports "80,443" --udp-scan --udp-ports "53,161" -s
 ```
 
-### Output Formats
+### Output Formats ⭐ ENHANCED in v0.3.1
 
 ```bash
-# Human-readable (default)
+# Human-readable with banner (default)
 nextmap --target example.com -s
 
-# JSON for scripting
+# Enhanced CSV - 12 columns with Category, RiskLevel, DetectionMethod, CVECount
+nextmap --target 192.168.1.0/24 --output-format csv -f network.csv
+
+# Professional HTML report with risk cards and gradients
+nextmap --target example.com -s --output-format html -f report.html
+
+# JSON with enhanced metadata (file output now works!)
 nextmap --target example.com --output-format json -f results.json
 
 # Markdown report
@@ -225,10 +244,32 @@ nextmap --target example.com --output-format md -f report.md
 
 # XML (Nmap compatible)
 nextmap --target example.com --output-format xml -f scan.xml
-
-# CSV for analysis
-nextmap --target 192.168.1.0/24 --output-format csv -f network.csv
 ```
+
+### Enhanced CSV Format (v0.3.1)
+
+**12 Columns** (was 8 in v0.3.0):
+```csv
+IP,Hostname,Port,Protocol,State,Service,Version,Banner,Category,RiskLevel,DetectionMethod,CVECount
+192.168.1.1,,22,tcp,open,ssh,OpenSSH 8.2,SSH-2.0-OpenSSH_8.2,RemoteAccess,Low,Banner,0
+192.168.1.1,,80,tcp,open,http,nginx 1.18.0,Server: nginx/1.18.0,WebServer,Low,EnhancedProbe,0
+192.168.1.1,,3306,tcp,open,mysql,MySQL 5.7,,Database,High,VersionProbe,2
+```
+
+**New Columns Explained:**
+- `Category` - Service classification (15 categories: WebServer, Database, Container, etc.)
+- `RiskLevel` - Security risk (Critical 🔴, High 🟠, Medium 🟡, Low 🟢, Info 🔵)
+- `DetectionMethod` - How service was identified (Banner, EnhancedProbe, VersionProbe, PortMapping)
+- `CVECount` - Number of vulnerabilities detected
+
+### HTML Report Features (v0.3.1)
+
+- ✨ **Responsive Design** - Gradient headers, modern styling
+- 🎯 **Risk Summary Cards** - Color-coded by severity
+- 📊 **Service Grouping** - Organized by category
+- 🔍 **Sortable Tables** - Interactive data views
+- 🛡️ **CVE Listings** - Detailed vulnerability information
+- 📱 **Professional Layout** - Enterprise-ready reports
 
 ### Timing Templates
 
