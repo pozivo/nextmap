@@ -14,13 +14,58 @@ pub fn extract_http_server_version(banner: &str) -> Option<String> {
         }
     }
     
-    // Fallback patterns for embedded server info
+    // Fallback patterns for embedded server info - EXPANDED
     let patterns = vec![
+        // Nginx variants
         (r"nginx/([\d\.]+)", "nginx"),
+        (r"nginx/([\d\.]+) \(Ubuntu\)", "nginx"),
+        (r"nginx/([\d\.]+) \(Debian\)", "nginx"),
+        (r"nginx/([\d\.]+) \(Red Hat\)", "nginx"),
+        (r"nginx/([\d\.]+)-\w+", "nginx"),
+        (r"openresty/([\d\.]+)", "OpenResty"),
+        (r"tengine/([\d\.]+)", "Tengine"),
+        
+        // Apache variants
         (r"Apache/([\d\.]+)", "Apache"),
+        (r"Apache/([\d\.]+) \(Ubuntu\)", "Apache"),
+        (r"Apache/([\d\.]+) \(Debian\)", "Apache"),
+        (r"Apache/([\d\.]+) \(Red Hat\)", "Apache"),
+        (r"Apache/([\d\.]+) \(CentOS\)", "Apache"),
+        (r"Apache/([\d\.]+) \(Win32\)", "Apache"),
+        (r"Apache/([\d\.]+) \(Win64\)", "Apache"),
+        (r"Apache/([\d\.]+) mod_ssl/([\d\.]+)", "Apache"),
+        (r"Apache/([\d\.]+) OpenSSL/([\d\.]+)", "Apache"),
+        
+        // IIS variants
         (r"Microsoft-IIS/([\d\.]+)", "IIS"),
+        (r"IIS/([\d\.]+)", "IIS"),
+        
+        // Other web servers
         (r"lighttpd/([\d\.]+)", "lighttpd"),
+        (r"LiteSpeed/([\d\.]+)", "LiteSpeed"),
         (r"Caddy/([\d\.]+)", "Caddy"),
+        (r"Caddy v([\d\.]+)", "Caddy"),
+        (r"ATS/([\d\.]+)", "Apache Traffic Server"),
+        (r"Cowboy", "Cowboy"),
+        (r"Mongoose/([\d\.]+)", "Mongoose"),
+        (r"Cherokee/([\d\.]+)", "Cherokee"),
+        (r"Hiawatha v([\d\.]+)", "Hiawatha"),
+        (r"Boa/([\d\.]+)", "Boa"),
+        (r"thttpd/([\d\.]+)", "thttpd"),
+        (r"Mini httpd/([\d\.]+)", "Mini httpd"),
+        (r"SimpleHTTP/([\d\.]+)", "SimpleHTTP"),
+        (r"Rocket/([\d\.]+)", "Rocket"),
+        (r"Warp/([\d\.]+)", "Warp"),
+        (r"Hyper/([\d\.]+)", "Hyper"),
+        
+        // Cloud/proxy servers
+        (r"CloudFront", "CloudFront"),
+        (r"AmazonS3", "Amazon S3"),
+        (r"AkamaiGHost", "Akamai"),
+        (r"ECS \(([\w/]+)\)", "Amazon ECS"),
+        (r"BigIP", "F5 BigIP"),
+        
+        // Generic fallback
         (r"([\w\-]+)/([\d\.]+)", "Generic"),
     ];
     
@@ -46,14 +91,54 @@ pub fn extract_ssh_version(banner: &str) -> Option<String> {
             return Some(parts[2].to_string());
         }
     }
+    
+    // Additional SSH patterns - EXPANDED
+    let patterns = vec![
+        r"SSH-([\d\.]+)-OpenSSH_([\d\.p\w]+)",
+        r"SSH-([\d\.]+)-dropbear_([\d\.]+)",
+        r"SSH-([\d\.]+)-libssh_([\d\.]+)",
+        r"SSH-([\d\.]+)-Cisco-([\d\.]+)",
+        r"SSH-([\d\.]+)-ROSSSH_([\d\.]+)",
+        r"SSH-([\d\.]+)-OpenVMS_([\d\.]+)",
+        r"SSH-([\d\.]+)-Sun_SSH_([\d\.]+)",
+        r"SSH-([\d\.]+)-Serv-U_([\d\.]+)",
+        r"SSH-([\d\.]+)-WS_FTP_([\d\.]+)",
+        r"SSH-([\d\.]+)-RomSShell_([\d\.]+)",
+        r"SSH-([\d\.]+)-([\w\-]+)_([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                if let Some(full) = caps.get(0) {
+                    return Some(full.as_str().to_string());
+                }
+            }
+        }
+    }
+    
     None
 }
 
 /// Extract version from FTP banner
 pub fn extract_ftp_version(banner: &str) -> Option<String> {
-    // FTP banner patterns - more lenient
+    // FTP banner patterns - EXPANDED with more server types
     let patterns = vec![
-        r"220.*\((.*?)\)",  // ProFTPD, vsftpd style
+        r"220.*ProFTPD ([\d\.]+)",
+        r"220.*vsftpd ([\d\.]+)",
+        r"220.*Pure-FTPd ([\d\.]+)",
+        r"220.*FileZilla Server ([\d\.]+)",
+        r"220.*Microsoft FTP Service",
+        r"220.*WS_FTP Server ([\d\.]+)",
+        r"220.*Serv-U FTP Server v([\d\.]+)",
+        r"220.*Gene6 FTP Server v([\d\.]+)",
+        r"220.*Titan FTP Server ([\d\.]+)",
+        r"220.*GlobalSCAPE ([\d\.]+)",
+        r"220.*Wing FTP Server ([\d\.]+)",
+        r"220.*Xlight FTP Server ([\d\.]+)",
+        r"220.*CrushFTP Server ([\d\.]+)",
+        r"220.*bftpd ([\d\.]+)",
+        r"220.*\((.*?)\)",  // Generic (server_name) pattern
         r"220.*FTP.*?([\d]+\.[\d\.]+)",  // Version numbers
         r"220\s+([\w\-\s]+FTP[\w\s\-\.]*)",  // Generic FTP version
         r"220\s+(.+?)(?:\r|\n|$)",  // Capture everything after 220
@@ -76,8 +161,23 @@ pub fn extract_ftp_version(banner: &str) -> Option<String> {
 
 /// Extract version from SMTP banner
 pub fn extract_smtp_version(banner: &str) -> Option<String> {
-    // SMTP banner patterns
+    // SMTP banner patterns - EXPANDED with mail server variants
     let patterns = vec![
+        r"220.*Postfix",
+        r"220.*Sendmail ([\d\.]+)",
+        r"220.*Exim ([\d\.]+)",
+        r"220.*Microsoft ESMTP MAIL Service, Version: ([\d\.]+)",
+        r"220.*qmail",
+        r"220.*Courier ([\d\.]+)",
+        r"220.*Zimbra ([\d\.]+)",
+        r"220.*MailEnable ([\d\.]+)",
+        r"220.*IceWarp ([\d\.]+)",
+        r"220.*Kerio Connect ([\d\.]+)",
+        r"220.*MDaemon ([\d\.]+)",
+        r"220.*hmailserver",
+        r"220.*Haraka",
+        r"220.*OpenSMTPD",
+        r"220.*JAMES SMTP Server ([\d\.]+)",
         r"220.*ESMTP\s+([\w\-\.]+\s+[\d\.]+)",
         r"220.*\(([\w\s\-\.]+\d+\.[\d\.]+)\)",
         r"220 ([\w\-\.]+)",
@@ -88,6 +188,9 @@ pub fn extract_smtp_version(banner: &str) -> Option<String> {
             if let Some(caps) = re.captures(banner) {
                 if let Some(version) = caps.get(1) {
                     return Some(version.as_str().to_string());
+                } else {
+                    // Return matched server name even without version
+                    return Some(caps.get(0)?.as_str().to_string());
                 }
             }
         }
@@ -97,13 +200,26 @@ pub fn extract_smtp_version(banner: &str) -> Option<String> {
 
 /// Extract MySQL version
 pub fn extract_mysql_version(banner: &str) -> Option<String> {
-    // MySQL protocol version extraction
-    // Format: version_string null_terminated after initial handshake
+    // MySQL protocol version extraction - EXPANDED
     let banner_lower = banner.to_lowercase();
+    
+    let patterns = vec![
+        r"(\d+\.\d+\.\d+)-MariaDB",
+        r"(\d+\.\d+\.\d+)-MySQL",
+        r"MySQL-([\d\.]+)",
+        r"mysql\s+([\d\.]+)",
+        r"(\d+\.\d+\.\d+)-log",
+        r"(\d+\.\d+\.\d+)-(\w+)",
+        r"(\d+\.[\d\.]+(-[\w]+)?)",
+    ];
+    
     if banner_lower.contains("mysql") || banner_lower.contains("mariadb") {
-        let re = Regex::new(r"(\d+\.[\d\.]+(-[\w]+)?)").ok()?;
-        if let Some(caps) = re.captures(banner) {
-            return caps.get(1).map(|m| m.as_str().to_string());
+        for pattern in patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                if let Some(caps) = re.captures(banner) {
+                    return caps.get(1).map(|m| m.as_str().to_string());
+                }
+            }
         }
     }
     None
@@ -111,24 +227,55 @@ pub fn extract_mysql_version(banner: &str) -> Option<String> {
 
 /// Extract PostgreSQL version
 pub fn extract_postgresql_version(banner: &str) -> Option<String> {
-    if banner.to_lowercase().contains("postgresql") {
-        let re = Regex::new(r"PostgreSQL\s+([\d\.]+)").ok()?;
-        if let Some(caps) = re.captures(banner) {
-            return caps.get(1).map(|m| m.as_str().to_string());
+    // PostgreSQL version patterns - EXPANDED
+    let patterns = vec![
+        r"PostgreSQL\s+([\d\.]+)",
+        r"PostgreSQL ([\d\.]+) on",
+        r"PostgreSQL ([\d\.]+\.\d+)",
+        r"postgres \(PostgreSQL\) ([\d\.]+)",
+        r"EnterpriseDB ([\d\.]+)",
+        r"Greenplum Database ([\d\.]+)",
+        r"Amazon Aurora PostgreSQL ([\d\.]+)",
+        r"Azure Database for PostgreSQL ([\d\.]+)",
+        r"Citus ([\d\.]+)",
+    ];
+    
+    let banner_str = banner.to_string();
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(&banner_str) {
+                return caps.get(1).map(|m| m.as_str().to_string());
+            }
         }
     }
+    
     None
 }
 
 /// Extract MongoDB version
 pub fn extract_mongodb_version(banner: &str) -> Option<String> {
-    if banner.to_lowercase().contains("mongodb") {
-        // Try "MongoDB X.X.X" format - more flexible pattern
-        let re = Regex::new(r"[Mm]ongo[Dd][Bb][\s:version]*\s*([\d]+\.[\d\.]+)").ok()?;
-        if let Some(caps) = re.captures(banner) {
-            return caps.get(1).map(|m| m.as_str().to_string());
+    // MongoDB version patterns - EXPANDED
+    let patterns = vec![
+        r"MongoDB server version: ([\d\.]+)",
+        r"MongoDB/([\d\.]+)",
+        r"mongodb version v([\d\.]+)",
+        r#""version":\s*"([\d\.]+)""#,
+        r"db version v([\d\.]+)",
+        r"MongoDB Enterprise ([\d\.]+)",
+        r"MongoDB Atlas ([\d\.]+)",
+    ];
+    
+    let banner_lower = banner.to_lowercase();
+    if banner_lower.contains("mongodb") || banner_lower.contains("mongo") {
+        for pattern in patterns {
+            if let Ok(re) = Regex::new(pattern) {
+                if let Some(caps) = re.captures(banner) {
+                    return caps.get(1).map(|m| m.as_str().to_string());
+                }
+            }
         }
     }
+    
     None
 }
 
@@ -613,6 +760,1175 @@ pub fn extract_php_version(banner: &str) -> Option<String> {
     None
 }
 
+/// Extract Tomcat version
+pub fn extract_tomcat_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Apache-Coyote/([\d\.]+)",
+        r"Tomcat/([\d\.]+)",
+        r"Apache Tomcat/([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Tomcat/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Jetty version
+pub fn extract_jetty_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"Jetty\(?([\d\.]+)\)?").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("Jetty/{}", m.as_str()))
+}
+
+/// Extract Undertow version  
+pub fn extract_undertow_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"Undertow[\s/]+([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("Undertow/{}", m.as_str()))
+}
+
+/// Extract WildFly version
+pub fn extract_wildfly_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"WildFly[\s/]+([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("WildFly/{}", m.as_str()))
+}
+
+/// Extract WebLogic version
+pub fn extract_weblogic_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"WebLogic Server ([\d\.]+)",
+        r"Oracle-WebLogic-Server/([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("WebLogic/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract WebSphere version
+pub fn extract_websphere_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"WebSphere Application Server/([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("WebSphere/{}", m.as_str()))
+}
+
+/// Extract GlassFish version
+pub fn extract_glassfish_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"GlassFish[\s/]+([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("GlassFish/{}", m.as_str()))
+}
+
+/// Extract Gunicorn version
+pub fn extract_gunicorn_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"gunicorn/([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("gunicorn/{}", m.as_str()))
+}
+
+/// Extract uWSGI version
+pub fn extract_uwsgi_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"uWSGI[\s/]+([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("uWSGI/{}", m.as_str()))
+}
+
+/// Extract Puma version  
+pub fn extract_puma_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"Puma[\s/]+([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("Puma/{}", m.as_str()))
+}
+
+/// Extract Passenger version
+pub fn extract_passenger_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"Phusion Passenger[\s/]+([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("Passenger/{}", m.as_str()))
+}
+
+/// Extract Unicorn version
+pub fn extract_unicorn_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"Unicorn/([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("Unicorn/{}", m.as_str()))
+}
+
+/// Extract Kestrel version (ASP.NET Core)
+pub fn extract_kestrel_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"Kestrel").ok()?;
+    if re.is_match(banner) {
+        return Some("Kestrel".to_string());
+    }
+    None
+}
+
+/// Extract Traefik version
+pub fn extract_traefik_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"Traefik/([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("Traefik/{}", m.as_str()))
+}
+
+/// Extract HAProxy version
+pub fn extract_haproxy_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"HAProxy/([\d\.]+)").ok()?;
+    re.captures(banner)
+        .and_then(|caps| caps.get(1))
+        .map(|m| format!("HAProxy/{}", m.as_str()))
+}
+
+/// Extract Envoy version
+pub fn extract_envoy_version(banner: &str) -> Option<String> {
+    let re = Regex::new(r"envoy").ok()?;
+    if re.is_match(&banner.to_lowercase()) {
+        return Some("Envoy".to_string());
+    }
+    None
+}
+
+// ===== DATABASE VARIANTS =====
+
+/// Extract MariaDB version
+pub fn extract_mariadb_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"MariaDB-([\d\.]+)",
+        r"MariaDB/([\d\.]+)",
+        r"(\d+\.\d+\.\d+)-MariaDB",
+        r"maria.*?(\d+\.\d+\.\d+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("MariaDB/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Percona Server version
+pub fn extract_percona_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Percona Server ([\d\.]+)",
+        r"(\d+\.\d+\.\d+)-Percona",
+        r"Percona.*?(\d+\.\d+\.\d+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Percona Server/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Amazon Aurora version
+pub fn extract_aurora_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Aurora-([\d\.]+)",
+        r"Amazon Aurora ([\d\.]+)",
+        r"aurora.*?(\d+\.\d+\.\d+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Amazon Aurora/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract CockroachDB version
+pub fn extract_cockroachdb_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"CockroachDB/([\d\.]+)",
+        r"cockroach-([\d\.]+)",
+        r"CockroachDB v([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("CockroachDB/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract YugabyteDB version
+pub fn extract_yugabyte_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"YugabyteDB/([\d\.]+)",
+        r"yugabyte-([\d\.]+)",
+        r"YugaByte ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("YugabyteDB/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract TimescaleDB version
+pub fn extract_timescaledb_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"TimescaleDB ([\d\.]+)",
+        r"timescaledb-([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("TimescaleDB/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Oracle Database version
+pub fn extract_oracle_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Oracle Database (\d+c Release [\d\.]+)",
+        r"Oracle.*?Release ([\d\.]+)",
+        r"TNS.*?Version ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Oracle/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Microsoft SQL Server version
+pub fn extract_mssql_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Microsoft SQL Server ([\d\.]+)",
+        r"MSSQL Server ([\d\.]+)",
+        r"SQL Server.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Microsoft SQL Server/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+// ===== CLOUD LOAD BALANCERS & CDN =====
+
+/// Extract AWS ELB/ALB/NLB version
+pub fn extract_aws_elb_version(banner: &str) -> Option<String> {
+    if banner.contains("awselb/") || banner.contains("AWS-ELB") {
+        return Some("AWS ELB".to_string());
+    }
+    if banner.contains("ALB") || banner.contains("Application Load Balancer") {
+        return Some("AWS ALB".to_string());
+    }
+    if banner.contains("NLB") || banner.contains("Network Load Balancer") {
+        return Some("AWS NLB".to_string());
+    }
+    None
+}
+
+/// Extract Amazon CloudFront version
+pub fn extract_cloudfront_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"CloudFront",
+        r"Amazon CloudFront",
+    ];
+    
+    for pattern in patterns {
+        if banner.contains(pattern) {
+            return Some("Amazon CloudFront".to_string());
+        }
+    }
+    None
+}
+
+/// Extract Azure Front Door version
+pub fn extract_azure_fd_version(banner: &str) -> Option<String> {
+    if banner.contains("Azure Front Door") || banner.contains("AFD") {
+        return Some("Azure Front Door".to_string());
+    }
+    if banner.contains("Azure Application Gateway") {
+        return Some("Azure Application Gateway".to_string());
+    }
+    None
+}
+
+/// Extract GCP Load Balancer version
+pub fn extract_gcp_lb_version(banner: &str) -> Option<String> {
+    if banner.contains("GFE/") || banner.contains("Google Frontend") {
+        if let Ok(re) = Regex::new(r"GFE/([\d\.]+)") {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Google Frontend/{}", m.as_str()));
+            }
+        }
+        return Some("Google Frontend".to_string());
+    }
+    None
+}
+
+/// Extract Akamai CDN version
+pub fn extract_akamai_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"AkamaiGHost",
+        r"Akamai",
+    ];
+    
+    for pattern in patterns {
+        if banner.contains(pattern) {
+            return Some("Akamai CDN".to_string());
+        }
+    }
+    None
+}
+
+/// Extract Fastly CDN version
+pub fn extract_fastly_version(banner: &str) -> Option<String> {
+    if banner.contains("Fastly") {
+        return Some("Fastly CDN".to_string());
+    }
+    None
+}
+
+// ===== IOT & EMBEDDED DEVICES =====
+
+/// Extract Mikrotik RouterOS version
+pub fn extract_mikrotik_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"MikroTik RouterOS ([\d\.]+)",
+        r"RouterOS/([\d\.]+)",
+        r"mikrotik.*?v?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("MikroTik RouterOS/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Ubiquiti UniFi version
+pub fn extract_ubiquiti_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"UniFi/([\d\.]+)",
+        r"Ubiquiti.*?([\d\.]+)",
+        r"UDM.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Ubiquiti UniFi/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract ASUS Router version
+pub fn extract_asus_router_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"ASUS.*?([\d\.]+)",
+        r"AsusWRT/([\d\.]+)",
+        r"RT-[A-Z0-9]+.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("ASUS Router/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract TP-Link version
+pub fn extract_tplink_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"TP-LINK.*?([\d\.]+)",
+        r"TL-[A-Z0-9]+.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("TP-Link/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Synology DSM version
+pub fn extract_synology_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Synology.*?DSM ([\d\.]+)",
+        r"DiskStation.*?([\d\.]+)",
+        r"synology.*?dsm.*?([\d\.-]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Synology DSM/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract QNAP QTS version
+pub fn extract_qnap_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"QNAP.*?QTS ([\d\.]+)",
+        r"QTS/([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("QNAP QTS/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract TrueNAS version
+pub fn extract_truenas_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"TrueNAS-([\d\.]+)",
+        r"TrueNAS CORE ([\d\.]+)",
+        r"FreeNAS-([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("TrueNAS/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Hikvision camera version
+pub fn extract_hikvision_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Hikvision.*?([\d\.]+)",
+        r"DS-[0-9A-Z]+.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Hikvision/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Dahua camera version
+pub fn extract_dahua_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Dahua.*?([\d\.]+)",
+        r"DH-[0-9A-Z]+.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Dahua/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Axis camera version
+pub fn extract_axis_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"AXIS.*?([\d\.]+)",
+        r"Axis Communications.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Axis/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Home Assistant version
+pub fn extract_homeassistant_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Home Assistant/([\d\.]+)",
+        r"homeassistant.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Home Assistant/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract OpenHAB version
+pub fn extract_openhab_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"openHAB/([\d\.]+)",
+        r"openhab.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("OpenHAB/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract pfSense version
+pub fn extract_pfsense_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"pfSense/([\d\.]+)",
+        r"pfsense.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("pfSense/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract OPNsense version
+pub fn extract_opnsense_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"OPNsense/([\d\.]+)",
+        r"opnsense.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("OPNsense/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+// ===== ENTERPRISE SOFTWARE =====
+
+/// Extract SAP NetWeaver version
+pub fn extract_sap_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"SAP NetWeaver ([\d\.]+)",
+        r"SAP.*?([0-9]{3,4})",
+        r"SAP HANA ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("SAP/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Oracle HTTP Server version
+pub fn extract_oracle_http_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Oracle-HTTP-Server/([\d\.]+)",
+        r"Oracle HTTP Server ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Oracle HTTP Server/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract IBM HTTP Server version
+pub fn extract_ibm_http_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"IBM_HTTP_Server/([\d\.]+)",
+        r"IBM HTTP Server ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("IBM HTTP Server/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Microsoft SharePoint version
+pub fn extract_sharepoint_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"SharePoint/([\d\.]+)",
+        r"Microsoft SharePoint ([\d\.]+)",
+        r"MicrosoftSharePointTeamServices: ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("SharePoint/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Microsoft Exchange version
+pub fn extract_exchange_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Microsoft-Exchange/([\d\.]+)",
+        r"Exchange Server ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Microsoft Exchange/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Atlassian Confluence version
+pub fn extract_confluence_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Confluence/([\d\.]+)",
+        r"Atlassian Confluence ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Confluence/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Atlassian Jira version
+pub fn extract_jira_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"JIRA/([\d\.]+)",
+        r"Atlassian JIRA ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("JIRA/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract GitLab version
+pub fn extract_gitlab_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"GitLab/([\d\.]+)",
+        r"gitlab.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("GitLab/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Jenkins version
+pub fn extract_jenkins_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Jenkins/([\d\.]+)",
+        r"Jenkins ver\. ([\d\.]+)",
+        r"X-Jenkins: ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Jenkins/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Grafana version
+pub fn extract_grafana_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Grafana/([\d\.]+)",
+        r"grafana.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Grafana/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+// ===== CMS PLATFORMS =====
+
+/// Extract WordPress version
+pub fn extract_wordpress_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"WordPress/([\d\.]+)",
+        r"wordpress.*?([\d\.]+)",
+        r"wp-includes.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("WordPress/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Joomla version
+pub fn extract_joomla_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Joomla!?/([\d\.]+)",
+        r"joomla.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Joomla/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Drupal version
+pub fn extract_drupal_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Drupal/([\d\.]+)",
+        r"drupal.*?([\d\.]+)",
+        r"X-Generator: Drupal ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Drupal/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Magento version
+pub fn extract_magento_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Magento/([\d\.]+)",
+        r"magento.*?([\d\.]+)",
+        r"X-Magento.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Magento/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract PrestaShop version
+pub fn extract_prestashop_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"PrestaShop/([\d\.]+)",
+        r"prestashop.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("PrestaShop/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract OpenCart version
+pub fn extract_opencart_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"OpenCart/([\d\.]+)",
+        r"opencart.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("OpenCart/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Shopify version
+pub fn extract_shopify_version(banner: &str) -> Option<String> {
+    if banner.to_lowercase().contains("shopify") || banner.contains("X-ShopId") {
+        return Some("Shopify".to_string());
+    }
+    None
+}
+
+/// Extract WooCommerce version
+pub fn extract_woocommerce_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"WooCommerce/([\d\.]+)",
+        r"woocommerce.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("WooCommerce/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract vBulletin version
+pub fn extract_vbulletin_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"vBulletin ([\d\.]+)",
+        r"vbulletin.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("vBulletin/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract phpBB version
+pub fn extract_phpbb_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"phpBB/([\d\.]+)",
+        r"phpbb.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("phpBB/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+// ===== VPN & NETWORKING =====
+
+/// Extract OpenVPN version
+pub fn extract_openvpn_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"OpenVPN/([\d\.]+)",
+        r"openvpn.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("OpenVPN/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract WireGuard version
+pub fn extract_wireguard_version(banner: &str) -> Option<String> {
+    if banner.to_lowercase().contains("wireguard") {
+        return Some("WireGuard".to_string());
+    }
+    None
+}
+
+/// Extract IPsec/IKE version
+pub fn extract_ipsec_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"IKEv([\d]+)",
+        r"strongSwan/([\d\.]+)",
+        r"IPsec.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("IPsec/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Cisco AnyConnect version
+pub fn extract_anyconnect_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Cisco AnyConnect ([\d\.]+)",
+        r"anyconnect.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Cisco AnyConnect/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+// ===== VOIP & COMMUNICATION =====
+
+/// Extract Asterisk version
+pub fn extract_asterisk_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Asterisk/([\d\.]+)",
+        r"Asterisk PBX ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Asterisk/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract FreeSWITCH version
+pub fn extract_freeswitch_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"FreeSWITCH/([\d\.]+)",
+        r"freeswitch.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("FreeSWITCH/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract SIP server version
+pub fn extract_sip_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"SIP/([\d\.]+)",
+        r"Kamailio ([\d\.]+)",
+        r"OpenSIPS ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("SIP/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+// ===== ADDITIONAL WEB FRAMEWORKS =====
+
+/// Extract Flask version
+pub fn extract_flask_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Flask/([\d\.]+)",
+        r"Werkzeug/([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Flask/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Laravel version
+pub fn extract_laravel_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Laravel/([\d\.]+)",
+        r"laravel.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Laravel/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract ASP.NET version
+pub fn extract_aspnet_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"ASP\.NET/([\d\.]+)",
+        r"X-AspNet-Version: ([\d\.]+)",
+        r"X-Powered-By: ASP\.NET",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                if let Some(version) = caps.get(1) {
+                    return Some(format!("ASP.NET/{}", version.as_str()));
+                }
+            }
+        }
+    }
+    if banner.contains("ASP.NET") {
+        return Some("ASP.NET".to_string());
+    }
+    None
+}
+
+/// Extract Ruby on Rails version
+pub fn extract_rails_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Rails ([\d\.]+)",
+        r"Ruby on Rails ([\d\.]+)",
+        r"rails.*?([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(&pattern.to_lowercase()) {
+            if let Some(caps) = re.captures(&banner.to_lowercase()) {
+                return caps.get(1).map(|m| format!("Rails/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
+/// Extract Struts version
+pub fn extract_struts_version(banner: &str) -> Option<String> {
+    let patterns = vec![
+        r"Struts/([\d\.]+)",
+        r"Apache Struts ([\d\.]+)",
+    ];
+    
+    for pattern in patterns {
+        if let Ok(re) = Regex::new(pattern) {
+            if let Some(caps) = re.captures(banner) {
+                return caps.get(1).map(|m| format!("Struts/{}", m.as_str()));
+            }
+        }
+    }
+    None
+}
+
 /// Comprehensive service version extraction
 pub fn extract_service_version(service: &str, banner: &str) -> Option<String> {
     match service {
@@ -629,6 +1945,94 @@ pub fn extract_service_version(service: &str, banner: &str) -> Option<String> {
         "activemq" => extract_activemq_version(banner),
         "zookeeper" => extract_zookeeper_version(banner),
         "minio" => extract_minio_version(banner),
+        // Application servers
+        "tomcat" => extract_tomcat_version(banner),
+        "jetty" => extract_jetty_version(banner),
+        "undertow" => extract_undertow_version(banner),
+        "wildfly" | "jboss" => extract_wildfly_version(banner),
+        "weblogic" => extract_weblogic_version(banner),
+        "websphere" => extract_websphere_version(banner),
+        "glassfish" => extract_glassfish_version(banner),
+        // Python web servers
+        "gunicorn" => extract_gunicorn_version(banner),
+        "uwsgi" => extract_uwsgi_version(banner),
+        // Ruby web servers
+        "puma" => extract_puma_version(banner),
+        "passenger" => extract_passenger_version(banner),
+        "unicorn" => extract_unicorn_version(banner),
+        // Modern web servers
+        "kestrel" => extract_kestrel_version(banner),
+        "traefik" => extract_traefik_version(banner),
+        "haproxy" => extract_haproxy_version(banner),
+        "envoy" => extract_envoy_version(banner),
+        // Database variants
+        "mariadb" => extract_mariadb_version(banner),
+        "percona" => extract_percona_version(banner),
+        "aurora" => extract_aurora_version(banner),
+        "cockroachdb" | "cockroach" => extract_cockroachdb_version(banner),
+        "yugabyte" | "yugabytedb" => extract_yugabyte_version(banner),
+        "timescaledb" | "timescale" => extract_timescaledb_version(banner),
+        "oracle" | "oracle-db" => extract_oracle_version(banner),
+        "mssql" | "ms-sql-s" | "sqlserver" => extract_mssql_version(banner),
+        // Cloud load balancers and CDN
+        "aws-elb" | "awselb" => extract_aws_elb_version(banner),
+        "cloudfront" => extract_cloudfront_version(banner),
+        "azure-fd" | "azure-frontdoor" => extract_azure_fd_version(banner),
+        "gcp-lb" | "gfe" => extract_gcp_lb_version(banner),
+        "akamai" => extract_akamai_version(banner),
+        "fastly" => extract_fastly_version(banner),
+        // IoT and embedded devices
+        "mikrotik" | "routeros" => extract_mikrotik_version(banner),
+        "ubiquiti" | "unifi" => extract_ubiquiti_version(banner),
+        "asus-router" | "asuswrt" => extract_asus_router_version(banner),
+        "tplink" | "tp-link" => extract_tplink_version(banner),
+        "synology" | "dsm" => extract_synology_version(banner),
+        "qnap" | "qts" => extract_qnap_version(banner),
+        "truenas" | "freenas" => extract_truenas_version(banner),
+        "hikvision" => extract_hikvision_version(banner),
+        "dahua" => extract_dahua_version(banner),
+        "axis" | "axis-camera" => extract_axis_version(banner),
+        "homeassistant" | "home-assistant" => extract_homeassistant_version(banner),
+        "openhab" => extract_openhab_version(banner),
+        "pfsense" => extract_pfsense_version(banner),
+        "opnsense" => extract_opnsense_version(banner),
+        // Enterprise software
+        "sap" | "netweaver" | "sap-hana" => extract_sap_version(banner),
+        "oracle-http" | "ohs" => extract_oracle_http_version(banner),
+        "ibm-http" | "ihs" => extract_ibm_http_version(banner),
+        "sharepoint" => extract_sharepoint_version(banner),
+        "exchange" => extract_exchange_version(banner),
+        "confluence" => extract_confluence_version(banner),
+        "jira" => extract_jira_version(banner),
+        "gitlab" => extract_gitlab_version(banner),
+        "jenkins" => extract_jenkins_version(banner),
+        "grafana" => extract_grafana_version(banner),
+        // CMS platforms
+        "wordpress" | "wp" => extract_wordpress_version(banner),
+        "joomla" => extract_joomla_version(banner),
+        "drupal" => extract_drupal_version(banner),
+        "magento" => extract_magento_version(banner),
+        "prestashop" => extract_prestashop_version(banner),
+        "opencart" => extract_opencart_version(banner),
+        "shopify" => extract_shopify_version(banner),
+        "woocommerce" => extract_woocommerce_version(banner),
+        "vbulletin" => extract_vbulletin_version(banner),
+        "phpbb" => extract_phpbb_version(banner),
+        // VPN and networking
+        "openvpn" => extract_openvpn_version(banner),
+        "wireguard" => extract_wireguard_version(banner),
+        "ipsec" | "ike" => extract_ipsec_version(banner),
+        "anyconnect" | "cisco-anyconnect" => extract_anyconnect_version(banner),
+        // VoIP and communication
+        "asterisk" => extract_asterisk_version(banner),
+        "freeswitch" => extract_freeswitch_version(banner),
+        "sip" | "kamailio" | "opensips" => extract_sip_version(banner),
+        // Web frameworks
+        "flask" | "werkzeug" => extract_flask_version(banner),
+        "laravel" => extract_laravel_version(banner),
+        "aspnet" | "asp.net" => extract_aspnet_version(banner),
+        "rails" | "ruby-on-rails" => extract_rails_version(banner),
+        "struts" => extract_struts_version(banner),
         // JSON-based services need special handling in the caller
         "elasticsearch" | "couchdb" | "docker" | "kubernetes" | "etcd" | "consul" | "vault" | "solr" => {
             // These return None here, will be handled by HTTP fingerprinting

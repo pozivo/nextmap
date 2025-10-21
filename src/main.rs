@@ -17,11 +17,11 @@ mod stealth;
 mod cve;
 mod msf;  // Metasploit integration
 mod nuclei;  // Nuclei integration for active scanning
-mod nmap;  // Nmap integration for enhanced service detection
 mod probes;  // Multi-level probing system
 mod fingerprint;
 mod output;
 mod banner;
+mod ssl;  // TLS/SSL certificate parsing
 #[cfg(feature = "network-discovery")]
 mod discovery;
 
@@ -30,7 +30,7 @@ use stealth::*;
 use cve::*;
 use msf::*;  // Metasploit integration
 use nuclei::*;  // Nuclei integration
-use nmap::*;  // Nmap integration
+use ssl::*;  // SSL certificate parsing
 use probes::*;  // Multi-level probing
 use fingerprint::*;
 use banner::*;
@@ -160,26 +160,6 @@ struct Args {
     /// Nuclei verbose output
     #[arg(long, default_value_t = false)]
     nuclei_verbose: bool,
-
-    /// Use Nmap for service detection (requires nmap installed)
-    #[arg(long, default_value_t = false)]
-    use_nmap: bool,
-
-    /// Path to nmap binary (auto-detected by default)
-    #[arg(long)]
-    nmap_path: Option<String>,
-
-    /// Nmap aggressive service detection (-A flag)
-    #[arg(long, default_value_t = false)]
-    nmap_aggressive: bool,
-
-    /// Nmap OS detection (-O flag)
-    #[arg(long, default_value_t = false)]
-    nmap_os_detection: bool,
-
-    /// Nmap version intensity (0-9, default 7)
-    #[arg(long, default_value_t = 7)]
-    nmap_intensity: u8,
 
     /// Enable multi-probe service detection (more accurate but slower)
     #[arg(long, default_value_t = false)]
@@ -1228,17 +1208,77 @@ async fn analyze_open_port(mut port: Port, target: &str, timeout: Duration, mult
     let mut vulns = Vec::new();
     
     if port.state == PortState::Open {
+        // Track HTTP/2 support across the whole function
+        let mut has_http2 = false;
+        
+        // === TLS/SSL CERTIFICATE PARSING ===
+        // If port is likely HTTPS/TLS, try to extract certificate info
+        if ssl::is_likely_tls_port(port.port_id) {
+            if let Some(ssl_info) = ssl::get_ssl_info(target, port.port_id, timeout).await {
+                // Build SSL summary with HTTP/2 detection
+                let mut ssl_parts = vec![
+                    format!("TLS: {}", ssl_info.common_name.as_deref().unwrap_or("Unknown")),
+                    format!("Issuer: {}", ssl_info.issuer_cn.as_deref().unwrap_or("Unknown")),
+                    format!("Expires: {} days", ssl_info.days_until_expiry.unwrap_or(0)),
+                ];
+                
+                // Add HTTP/2 indicator if supported
+                if ssl_info.http2_support {
+                    ssl_parts.push("HTTP/2".to_string());
+                    has_http2 = true; // Set flag for later use
+                }
+                
+                // Add status flags
+                if ssl_info.is_expired {
+                    ssl_parts.push("[EXPIRED]".to_string());
+                } else if ssl_info.is_self_signed {
+                    ssl_parts.push("[SELF-SIGNED]".to_string());
+                }
+                
+                let ssl_summary = ssl_parts.join(" | ");
+                
+                // Prepend SSL info to existing banner
+                if let Some(existing_banner) = &port.banner {
+                    port.banner = Some(format!("{} | {}", ssl_summary, existing_banner));
+                } else {
+                    port.banner = Some(ssl_summary);
+                }
+                
+                // If we have organization info, use it as service version
+                if let Some(org) = &ssl_info.organization {
+                    if port.service_version.is_none() {
+                        port.service_version = Some(format!("{} - {}", 
+                            ssl_info.common_name.as_deref().unwrap_or("SSL"),
+                            org
+                        ));
+                    }
+                }
+            }
+        }
+        
         // === MULTI-PROBE SYSTEM ===
         // Se abilitato, usa il sistema di probing multi-livello prima del fingerprinting standard
         if multi_probe {
             if let Some(probe_result) = probes::probe_service(target, port.port_id, timeout).await {
-                // Aggiorna il banner con la risposta del probe
+                // Aggiorna il banner con la risposta del probe (preserva SSL info se presente)
                 if !probe_result.response.is_empty() {
-                    port.banner = Some(probe_result.response.clone());
+                    if let Some(existing_banner) = &port.banner {
+                        // Se il banner esistente contiene info SSL, preservalo
+                        if existing_banner.starts_with("TLS:") {
+                            port.banner = Some(format!("{} | {}", existing_banner, probe_result.response));
+                        } else {
+                            port.banner = Some(probe_result.response.clone());
+                        }
+                    } else {
+                        port.banner = Some(probe_result.response.clone());
+                    }
                 }
                 
                 // Se il probe ha identificato il servizio, usalo
-                if let Some(service) = probe_result.service_identified {
+                let service_identified = probe_result.service_identified.clone();
+                let should_return = probe_result.confidence >= 80;
+                
+                if let Some(service) = service_identified {
                     port.service_name = Some(service.clone());
                     
                     if let Some(version) = probe_result.version {
@@ -1247,11 +1287,28 @@ async fn analyze_open_port(mut port: Port, target: &str, timeout: Duration, mult
                     
                     // Indica il metodo di rilevamento
                     port.detection_method = Some(DetectionMethod::EnhancedProbe);
-                    
-                    // Non serve continuare con il fingerprinting se abbiamo già identificato tutto
-                    if probe_result.confidence >= 80 {
-                        return (port, vulns);
+                }
+                
+                // Apply HTTP/2 tag if detected (always, regardless of probe result)
+                if has_http2 {
+                    if let Some(ref service_name) = port.service_name {
+                        if (service_name.contains("http") || service_name.contains("https")) && !service_name.contains("http2") {
+                            // Normalize service name for HTTP/2
+                            let normalized = if service_name == "https" || service_name.contains("ssl") {
+                                "https/http2".to_string()
+                            } else if service_name.contains("http") {
+                                "http/http2".to_string()
+                            } else {
+                                format!("{}/http2", service_name)
+                            };
+                            port.service_name = Some(normalized);
+                        }
                     }
+                }
+                
+                // Non serve continuare con il fingerprinting se abbiamo già identificato tutto
+                if should_return {
+                    return (port, vulns);
                 }
             }
         }
@@ -1622,6 +1679,23 @@ async fn analyze_open_port(mut port: Port, target: &str, timeout: Duration, mult
             has_version,
             vulns.len()
         ));
+        
+        // === FINAL HTTP/2 TAG APPLICATION ===
+        // Apply HTTP/2 tag one more time at the end to catch any missed cases
+        if has_http2 {
+            if let Some(ref service_name) = port.service_name {
+                if (service_name.contains("http") || service_name == "https") && !service_name.contains("http2") {
+                    let normalized = if service_name == "https" || service_name.contains("ssl") {
+                        "https/http2".to_string()
+                    } else if service_name.contains("http") {
+                        "http/http2".to_string()
+                    } else {
+                        format!("{}/http2", service_name)
+                    };
+                    port.service_name = Some(normalized);
+                }
+            }
+        }
     }
     
     (port, vulns)
