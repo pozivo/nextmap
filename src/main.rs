@@ -17,6 +17,8 @@ mod stealth;
 mod cve;
 mod msf;  // Metasploit integration
 mod nuclei;  // Nuclei integration for active scanning
+mod nmap;  // Nmap integration for enhanced service detection
+mod probes;  // Multi-level probing system
 mod fingerprint;
 mod output;
 mod banner;
@@ -28,6 +30,8 @@ use stealth::*;
 use cve::*;
 use msf::*;  // Metasploit integration
 use nuclei::*;  // Nuclei integration
+use nmap::*;  // Nmap integration
+use probes::*;  // Multi-level probing
 use fingerprint::*;
 use banner::*;
 #[cfg(feature = "network-discovery")]
@@ -156,6 +160,30 @@ struct Args {
     /// Nuclei verbose output
     #[arg(long, default_value_t = false)]
     nuclei_verbose: bool,
+
+    /// Use Nmap for service detection (requires nmap installed)
+    #[arg(long, default_value_t = false)]
+    use_nmap: bool,
+
+    /// Path to nmap binary (auto-detected by default)
+    #[arg(long)]
+    nmap_path: Option<String>,
+
+    /// Nmap aggressive service detection (-A flag)
+    #[arg(long, default_value_t = false)]
+    nmap_aggressive: bool,
+
+    /// Nmap OS detection (-O flag)
+    #[arg(long, default_value_t = false)]
+    nmap_os_detection: bool,
+
+    /// Nmap version intensity (0-9, default 7)
+    #[arg(long, default_value_t = 7)]
+    nmap_intensity: u8,
+
+    /// Enable multi-probe service detection (more accurate but slower)
+    #[arg(long, default_value_t = false)]
+    multi_probe: bool,
 
     #[cfg(feature = "network-discovery")]
     /// Enable network discovery mode (ARP scan, ping sweep, neighbor discovery)
@@ -1153,9 +1181,10 @@ async fn analyze_open_port_with_nuclei(
     target: &str, 
     timeout: Duration,
     nuclei_scanner: Option<&NucleiIntegration>,
+    multi_probe: bool,
 ) -> (Port, Vec<Vulnerability>) {
     // Prima esegui l'analisi standard
-    let (mut port, mut vulns) = analyze_open_port(port, target, timeout).await;
+    let (mut port, mut vulns) = analyze_open_port(port, target, timeout, multi_probe).await;
     
     // Se Nuclei è abilitato e la porta è HTTP/HTTPS, esegui scan attivo
     if let Some(nuclei) = nuclei_scanner {
@@ -1195,10 +1224,38 @@ async fn analyze_open_port_with_nuclei(
 }
 
 // Analizza le porte aperte e identifica i servizi con enhanced fingerprinting
-async fn analyze_open_port(mut port: Port, target: &str, timeout: Duration) -> (Port, Vec<Vulnerability>) {
+async fn analyze_open_port(mut port: Port, target: &str, timeout: Duration, multi_probe: bool) -> (Port, Vec<Vulnerability>) {
     let mut vulns = Vec::new();
     
     if port.state == PortState::Open {
+        // === MULTI-PROBE SYSTEM ===
+        // Se abilitato, usa il sistema di probing multi-livello prima del fingerprinting standard
+        if multi_probe {
+            if let Some(probe_result) = probes::probe_service(target, port.port_id, timeout).await {
+                // Aggiorna il banner con la risposta del probe
+                if !probe_result.response.is_empty() {
+                    port.banner = Some(probe_result.response.clone());
+                }
+                
+                // Se il probe ha identificato il servizio, usalo
+                if let Some(service) = probe_result.service_identified {
+                    port.service_name = Some(service.clone());
+                    
+                    if let Some(version) = probe_result.version {
+                        port.service_version = Some(version);
+                    }
+                    
+                    // Indica il metodo di rilevamento
+                    port.detection_method = Some(DetectionMethod::EnhancedProbe);
+                    
+                    // Non serve continuare con il fingerprinting se abbiamo già identificato tutto
+                    if probe_result.confidence >= 80 {
+                        return (port, vulns);
+                    }
+                }
+            }
+        }
+        
         // Determina il servizio dalla porta
         let service_from_port = match port.port_id {
             80 | 8080 => "http",
@@ -2424,6 +2481,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let pb_clone = pb.clone();
             let sem_clone = semaphore.clone();
             let stealth_cfg = stealth_config.clone();
+            let multi_probe_enabled = args.multi_probe;
             
             tasks.push(task::spawn(async move {
                 let _permit = sem_clone.acquire().await.unwrap();
@@ -2465,7 +2523,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 
                 if result.state == PortState::Open {
                     if service_scan {
-                        analyze_open_port(result, &ip_clone, timeout).await
+                        analyze_open_port(result, &ip_clone, timeout, multi_probe_enabled).await
                     } else {
                         // Mappatura base servizi anche senza service_scan
                         let (mut port, vulns) = map_basic_service(result).await;
@@ -2486,6 +2544,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let port = *port;
                 let pb_clone = pb.clone();
                 let sem_clone = semaphore.clone();
+                let multi_probe_enabled = args.multi_probe;
                 
                 tasks.push(task::spawn(async move {
                     let _permit = sem_clone.acquire().await.unwrap();
@@ -2499,7 +2558,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     pb_clone.inc(1);
                     
                     if result.state == PortState::Open && service_scan {
-                        analyze_open_port(result, &ip_clone, timeout).await
+                        analyze_open_port(result, &ip_clone, timeout, multi_probe_enabled).await
                     } else {
                         (result, Vec::new())
                     }
